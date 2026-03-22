@@ -64,6 +64,8 @@ export interface NativeLoadedDocument {
 export interface NativeSearchOptions {
   topK?: number;
   hybrid?: boolean;
+  relativePathPrefix?: string;
+  metadata?: Record<string, string>;
 }
 
 export interface NativeIndex {

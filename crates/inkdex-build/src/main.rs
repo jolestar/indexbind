@@ -6,18 +6,19 @@ use std::path::PathBuf;
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
-    let input = args
-        .next()
-        .ok_or_else(|| anyhow!("usage: inkdex-build <input-dir> <output-file> [hashing|fastembed]"))?;
-    let output = args
-        .next()
-        .ok_or_else(|| anyhow!("usage: inkdex-build <input-dir> <output-file> [hashing|fastembed]"))?;
+    let input = args.next().ok_or_else(|| {
+        anyhow!("usage: inkdex-build <input-dir> <output-file> [hashing|fastembed]")
+    })?;
+    let output = args.next().ok_or_else(|| {
+        anyhow!("usage: inkdex-build <input-dir> <output-file> [hashing|fastembed]")
+    })?;
     let backend = match args.next().as_deref() {
-        Some("fastembed") => EmbeddingBackend::Fastembed {
-            model_name: "intfloat/multilingual-e5-small".to_string(),
-            model_code: "MultilingualE5Small".to_string(),
+        Some("hashing") => EmbeddingBackend::Hashing { dimensions: 256 },
+        Some(model) => EmbeddingBackend::Model2Vec {
+            model: model.to_string(),
+            batch_size: 512,
         },
-        _ => EmbeddingBackend::Hashing { dimensions: 256 },
+        None => EmbeddingBackend::default(),
     };
 
     let stats = build_from_directory(

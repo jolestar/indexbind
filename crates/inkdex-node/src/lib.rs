@@ -1,6 +1,7 @@
 use inkdex_core::{DocumentHit, LoadedDocument, Retriever, SearchOptions};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -8,6 +9,8 @@ use std::sync::Mutex;
 pub struct NodeSearchOptions {
     pub top_k: Option<u32>,
     pub hybrid: Option<bool>,
+    pub relative_path_prefix: Option<String>,
+    pub metadata: Option<HashMap<String, String>>,
 }
 
 #[napi(object)]
@@ -66,7 +69,10 @@ impl NativeIndex {
 
     #[napi]
     pub fn info(&self) -> napi::Result<NodeArtifactInfo> {
-        let retriever = self.inner.lock().map_err(|error| Error::from_reason(error.to_string()))?;
+        let retriever = self
+            .inner
+            .lock()
+            .map_err(|error| Error::from_reason(error.to_string()))?;
         let info = retriever.info();
         let embedding_backend =
             serde_json::to_string(&info.embedding_backend).map_err(map_serde_error)?;
@@ -82,11 +88,30 @@ impl NativeIndex {
     }
 
     #[napi]
-    pub fn search(&self, query: String, options: Option<NodeSearchOptions>) -> napi::Result<Vec<NodeDocumentHit>> {
-        let mut retriever = self.inner.lock().map_err(|error| Error::from_reason(error.to_string()))?;
+    pub fn search(
+        &self,
+        query: String,
+        options: Option<NodeSearchOptions>,
+    ) -> napi::Result<Vec<NodeDocumentHit>> {
+        let mut retriever = self
+            .inner
+            .lock()
+            .map_err(|error| Error::from_reason(error.to_string()))?;
         let options = SearchOptions {
             top_k: options.as_ref().and_then(|value| value.top_k).unwrap_or(10) as usize,
-            hybrid: options.and_then(|value| value.hybrid).unwrap_or(true),
+            hybrid: options
+                .as_ref()
+                .and_then(|value| value.hybrid)
+                .unwrap_or(true),
+            relative_path_prefix: options
+                .as_ref()
+                .and_then(|value| value.relative_path_prefix.clone()),
+            metadata: options
+                .and_then(|value| value.metadata)
+                .unwrap_or_default()
+                .into_iter()
+                .collect(),
+            ..SearchOptions::default()
         };
         let hits = retriever.search(&query, options).map_err(map_error)?;
         Ok(hits.into_iter().map(map_hit).collect())
@@ -102,7 +127,10 @@ impl NativeIndex {
         score: f64,
         best_match: NodeBestMatch,
     ) -> napi::Result<NodeLoadedDocument> {
-        let retriever = self.inner.lock().map_err(|error| Error::from_reason(error.to_string()))?;
+        let retriever = self
+            .inner
+            .lock()
+            .map_err(|error| Error::from_reason(error.to_string()))?;
         let loaded = retriever
             .read_document(&DocumentHit {
                 doc_id,

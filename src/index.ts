@@ -11,6 +11,8 @@ import {
 export interface SearchOptions {
   topK?: number;
   hybrid?: boolean;
+  relativePathPrefix?: string;
+  metadata?: Record<string, string>;
 }
 
 export interface BestMatch {
@@ -71,6 +73,8 @@ export class Index {
     const nativeOptions: NativeSearchOptions = {
       topK: options.topK,
       hybrid: options.hybrid,
+      relativePathPrefix: options.relativePathPrefix,
+      metadata: options.metadata,
     };
     return this.#nativeIndex.search(query, nativeOptions).map(mapHit);
   }

@@ -1,10 +1,14 @@
-use crate::embedding::{bytes_to_vector, cosine_similarity, Embedder, EmbeddingBackend};
-use crate::types::{BestMatch, DocumentHit, LoadedDocument, SourceRoot, StoredChunk, StoredDocument};
+use crate::embedding::{
+    bytes_to_vector, cosine_similarity, format_query_for_embedding, Embedder, EmbeddingBackend,
+};
+use crate::types::{
+    BestMatch, DocumentHit, LoadedDocument, SourceRoot, StoredChunk, StoredDocument,
+};
 use crate::{InkdexError, Result};
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -22,6 +26,11 @@ pub struct ArtifactInfo {
 pub struct SearchOptions {
     pub top_k: usize,
     pub hybrid: bool,
+    pub candidate_multiplier: usize,
+    #[serde(default)]
+    pub relative_path_prefix: Option<String>,
+    #[serde(default)]
+    pub metadata: BTreeMap<String, String>,
 }
 
 impl Default for SearchOptions {
@@ -29,6 +38,9 @@ impl Default for SearchOptions {
         Self {
             top_k: 10,
             hybrid: true,
+            candidate_multiplier: 8,
+            relative_path_prefix: None,
+            metadata: BTreeMap::new(),
         }
     }
 }
@@ -40,9 +52,11 @@ struct IndexedChunk {
 }
 
 pub struct Retriever {
+    connection: Connection,
     info: ArtifactInfo,
     documents: HashMap<String, StoredDocument>,
     chunks: Vec<IndexedChunk>,
+    chunks_by_id: HashMap<i64, StoredChunk>,
     source_root_override: Option<PathBuf>,
     embedder: Embedder,
 }
@@ -53,12 +67,18 @@ impl Retriever {
         let info = load_info(&connection)?;
         let documents = load_documents(&connection)?;
         let chunks = load_chunks(&connection)?;
+        let chunks_by_id = chunks
+            .iter()
+            .map(|entry| (entry.chunk.chunk_id, entry.chunk.clone()))
+            .collect::<HashMap<_, _>>();
         let embedder = Embedder::new(info.embedding_backend.clone())?;
 
         Ok(Self {
+            connection,
             info,
             documents,
             chunks,
+            chunks_by_id,
             source_root_override,
             embedder,
         })
@@ -69,64 +89,25 @@ impl Retriever {
     }
 
     pub fn search(&mut self, query: &str, options: SearchOptions) -> Result<Vec<DocumentHit>> {
+        let allowed_doc_ids = self.allowed_doc_ids(&options);
+        if allowed_doc_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let limit = (options.top_k * options.candidate_multiplier.max(1)).max(options.top_k);
+        let formatted_query = format_query_for_embedding(query);
         let query_embedding = self
             .embedder
-            .embed_queries(&[query.to_string()])?
+            .embed_texts(&[formatted_query])?
             .into_iter()
             .next()
             .unwrap_or_default();
-        let query_terms = tokenize(query);
-
-        let mut by_document: HashMap<String, Vec<(f32, &StoredChunk)>> = HashMap::new();
-        for indexed_chunk in &self.chunks {
-            let vector_score = cosine_similarity(&query_embedding, &indexed_chunk.embedding);
-            let lexical_score = if options.hybrid {
-                lexical_score(&query_terms, &indexed_chunk.chunk.chunk_text)
-            } else {
-                0.0
-            };
-            let score = if options.hybrid {
-                (0.7 * vector_score) + (0.3 * lexical_score)
-            } else {
-                vector_score
-            };
-            if score <= 0.0 {
-                continue;
-            }
-            by_document
-                .entry(indexed_chunk.chunk.doc_id.clone())
-                .or_default()
-                .push((score, &indexed_chunk.chunk));
-        }
-
-        let mut hits = by_document
-            .into_iter()
-            .filter_map(|(doc_id, mut scores)| {
-                scores.sort_by(|left, right| right.0.partial_cmp(&left.0).unwrap_or(Ordering::Equal));
-                let best = scores.first()?;
-                let stored_document = self.documents.get(&doc_id)?;
-                let aggregate = best.0 + scores.iter().skip(1).take(2).map(|entry| entry.0).sum::<f32>() * 0.1;
-                Some(DocumentHit {
-                    doc_id: stored_document.doc_id.clone(),
-                    original_path: stored_document.original_path.clone(),
-                    relative_path: stored_document.relative_path.clone(),
-                    title: stored_document.title.clone(),
-                    score: aggregate,
-                    best_match: BestMatch {
-                        chunk_id: best.1.chunk_id,
-                        excerpt: best.1.excerpt.clone(),
-                        heading_path: best.1.heading_path.clone(),
-                        char_start: best.1.char_start,
-                        char_end: best.1.char_end,
-                        score: best.0,
-                    },
-                    metadata: stored_document.metadata.clone(),
-                })
-            })
-            .collect::<Vec<_>>();
-
-        hits.sort_by(|left, right| right.score.partial_cmp(&left.score).unwrap_or(Ordering::Equal));
-        hits.truncate(options.top_k);
+        let vector_docs = self.rank_documents_by_vector(&query_embedding, limit, &allowed_doc_ids);
+        let lexical_docs = if options.hybrid {
+            self.rank_documents_by_lexical(query, limit, &allowed_doc_ids)?
+        } else {
+            Vec::new()
+        };
+        let hits = fuse_documents(&self.documents, &vector_docs, &lexical_docs, options.top_k);
         Ok(hits)
     }
 
@@ -144,6 +125,218 @@ impl Retriever {
             content,
         })
     }
+}
+
+impl Retriever {
+    fn allowed_doc_ids(&self, options: &SearchOptions) -> HashSet<String> {
+        self.documents
+            .values()
+            .filter(|document| document_matches(document, options))
+            .map(|document| document.doc_id.clone())
+            .collect()
+    }
+
+    fn rank_documents_by_vector(
+        &self,
+        query_embedding: &[f32],
+        limit: usize,
+        allowed_doc_ids: &HashSet<String>,
+    ) -> Vec<RankedDocument> {
+        let mut chunk_scores = self
+            .chunks
+            .iter()
+            .filter(|indexed_chunk| allowed_doc_ids.contains(&indexed_chunk.chunk.doc_id))
+            .map(|indexed_chunk| {
+                (
+                    cosine_similarity(query_embedding, &indexed_chunk.embedding),
+                    &indexed_chunk.chunk,
+                )
+            })
+            .filter(|(score, _)| *score > 0.0)
+            .collect::<Vec<_>>();
+        chunk_scores.sort_by(|left, right| right.0.partial_cmp(&left.0).unwrap_or(Ordering::Equal));
+
+        aggregate_ranked_documents(chunk_scores.into_iter().take(limit * 2), limit)
+    }
+
+    fn rank_documents_by_lexical(
+        &self,
+        query: &str,
+        limit: usize,
+        allowed_doc_ids: &HashSet<String>,
+    ) -> Result<Vec<RankedDocument>> {
+        let Some(fts_query) = build_fts_query(query) else {
+            return Ok(Vec::new());
+        };
+
+        let mut statement = self.connection.prepare(
+            "
+            SELECT chunk_id, doc_id, bm25(fts_chunks) AS rank
+            FROM fts_chunks
+            WHERE fts_chunks MATCH ?1
+            ORDER BY rank
+            LIMIT ?2
+            ",
+        )?;
+        let rows = statement.query_map(params![fts_query, limit as i64], |row| {
+            let chunk_id: i64 = row.get(0)?;
+            let doc_id: String = row.get(1)?;
+            let bm25: f64 = row.get(2)?;
+            Ok((chunk_id, doc_id, bm25))
+        })?;
+
+        let mut chunk_scores = Vec::new();
+        for row in rows {
+            let (chunk_id, _doc_id, bm25) = row?;
+            if let Some(chunk) = self.chunks_by_id.get(&chunk_id) {
+                if !allowed_doc_ids.contains(&chunk.doc_id) {
+                    continue;
+                }
+                let lexical = 1.0 / (1.0 + bm25.abs() as f32);
+                chunk_scores.push((lexical, chunk));
+            }
+        }
+
+        Ok(aggregate_ranked_documents(chunk_scores.into_iter(), limit))
+    }
+}
+
+fn document_matches(document: &StoredDocument, options: &SearchOptions) -> bool {
+    if let Some(prefix) = &options.relative_path_prefix {
+        if !document.relative_path.starts_with(prefix) {
+            return false;
+        }
+    }
+
+    options
+        .metadata
+        .iter()
+        .all(|(key, value)| document.metadata.get(key) == Some(value))
+}
+
+#[derive(Debug, Clone)]
+struct RankedDocument {
+    doc_id: String,
+    score: f32,
+    best_match: BestMatch,
+}
+
+fn aggregate_ranked_documents<'a, I>(chunk_scores: I, limit: usize) -> Vec<RankedDocument>
+where
+    I: Iterator<Item = (f32, &'a StoredChunk)>,
+{
+    let mut by_document: HashMap<String, Vec<(f32, &StoredChunk)>> = HashMap::new();
+    for (score, chunk) in chunk_scores {
+        by_document
+            .entry(chunk.doc_id.clone())
+            .or_default()
+            .push((score, chunk));
+    }
+
+    let mut documents = by_document
+        .into_iter()
+        .filter_map(|(doc_id, mut scores)| {
+            scores.sort_by(|left, right| right.0.partial_cmp(&left.0).unwrap_or(Ordering::Equal));
+            let best = scores.first()?;
+            let aggregate = best.0
+                + scores
+                    .iter()
+                    .skip(1)
+                    .take(2)
+                    .map(|entry| entry.0)
+                    .sum::<f32>()
+                    * 0.1;
+            Some(RankedDocument {
+                doc_id,
+                score: aggregate,
+                best_match: BestMatch {
+                    chunk_id: best.1.chunk_id,
+                    excerpt: best.1.excerpt.clone(),
+                    heading_path: best.1.heading_path.clone(),
+                    char_start: best.1.char_start,
+                    char_end: best.1.char_end,
+                    score: best.0,
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+
+    documents.sort_by(|left, right| {
+        right
+            .score
+            .partial_cmp(&left.score)
+            .unwrap_or(Ordering::Equal)
+    });
+    documents.truncate(limit);
+    documents
+}
+
+fn fuse_documents(
+    documents: &HashMap<String, StoredDocument>,
+    vector_docs: &[RankedDocument],
+    lexical_docs: &[RankedDocument],
+    top_k: usize,
+) -> Vec<DocumentHit> {
+    const RRF_K: f32 = 60.0;
+
+    #[derive(Default)]
+    struct FusedScore {
+        score: f32,
+        vector_best: Option<BestMatch>,
+        lexical_best: Option<BestMatch>,
+    }
+
+    let mut fused: HashMap<String, FusedScore> = HashMap::new();
+
+    for (rank, entry) in vector_docs.iter().enumerate() {
+        let score = 1.0 / (RRF_K + rank as f32 + 1.0);
+        let fused_entry = fused.entry(entry.doc_id.clone()).or_default();
+        fused_entry.score += score;
+        fused_entry.vector_best = Some(entry.best_match.clone());
+    }
+
+    for (rank, entry) in lexical_docs.iter().enumerate() {
+        let score = 1.0 / (RRF_K + rank as f32 + 1.0);
+        let fused_entry = fused.entry(entry.doc_id.clone()).or_default();
+        fused_entry.score += score;
+        fused_entry.lexical_best = Some(entry.best_match.clone());
+    }
+
+    let mut hits = fused
+        .into_iter()
+        .filter_map(|(doc_id, fused_score)| {
+            let document = documents.get(&doc_id)?;
+            let best_match = fused_score
+                .vector_best
+                .or(fused_score.lexical_best)
+                .unwrap_or(BestMatch {
+                    chunk_id: 0,
+                    excerpt: String::new(),
+                    heading_path: Vec::new(),
+                    char_start: 0,
+                    char_end: 0,
+                    score: 0.0,
+                });
+            Some(DocumentHit {
+                doc_id: document.doc_id.clone(),
+                original_path: document.original_path.clone(),
+                relative_path: document.relative_path.clone(),
+                title: document.title.clone(),
+                score: fused_score.score,
+                best_match,
+                metadata: document.metadata.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    hits.sort_by(|left, right| {
+        right
+            .score
+            .partial_cmp(&left.score)
+            .unwrap_or(Ordering::Equal)
+    });
+    hits.truncate(top_k);
+    hits
 }
 
 fn load_info(connection: &Connection) -> Result<ArtifactInfo> {
@@ -173,7 +366,8 @@ fn load_info(connection: &Connection) -> Result<ArtifactInfo> {
             .ok_or(InkdexError::MissingMetadata("source_root"))?,
     )?;
 
-    let document_count = connection.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))?;
+    let document_count =
+        connection.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))?;
     let chunk_count = connection.query_row("SELECT COUNT(*) FROM chunks", [], |row| row.get(0))?;
 
     Ok(ArtifactInfo {
@@ -262,16 +456,12 @@ fn tokenize(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn lexical_score(query_terms: &[String], haystack: &str) -> f32 {
-    if query_terms.is_empty() {
-        return 0.0;
+fn build_fts_query(input: &str) -> Option<String> {
+    let tokens = tokenize(input);
+    if tokens.is_empty() {
+        return None;
     }
-    let haystack = haystack.to_lowercase();
-    let matches = query_terms
-        .iter()
-        .filter(|term| haystack.contains(term.as_str()))
-        .count();
-    matches as f32 / query_terms.len() as f32
+    Some(tokens.join(" OR "))
 }
 
 #[cfg(test)]
@@ -321,5 +511,68 @@ mod tests {
         assert!(hits[0].original_path.ends_with("guide.md"));
         let loaded = retriever.read_document(&hits[0]).unwrap();
         assert!(loaded.content.contains("Rust embeddings"));
+    }
+
+    #[test]
+    fn filters_hits_by_path_prefix_and_metadata() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("docs");
+        std::fs::create_dir_all(source.join("guides")).unwrap();
+        std::fs::create_dir_all(source.join("notes")).unwrap();
+
+        let guide = source.join("guides").join("rust.md");
+        std::fs::write(&guide, "# Rust Guide\nDocument retrieval in Rust.").unwrap();
+        let note = source.join("notes").join("python.md");
+        std::fs::write(&note, "# Python Note\nDocument retrieval in Python.").unwrap();
+
+        let artifact = dir.path().join("index.sqlite");
+        let mut guide_metadata = BTreeMap::new();
+        guide_metadata.insert("lang".to_string(), "rust".to_string());
+        let mut note_metadata = BTreeMap::new();
+        note_metadata.insert("lang".to_string(), "python".to_string());
+
+        build_artifact(
+            &artifact,
+            &[
+                NormalizedDocument {
+                    original_path: guide.display().to_string(),
+                    relative_path: "guides/rust.md".to_string(),
+                    title: Some("Rust Guide".to_string()),
+                    content: "# Rust Guide\nDocument retrieval in Rust.".to_string(),
+                    metadata: guide_metadata.clone(),
+                },
+                NormalizedDocument {
+                    original_path: note.display().to_string(),
+                    relative_path: "notes/python.md".to_string(),
+                    title: Some("Python Note".to_string()),
+                    content: "# Python Note\nDocument retrieval in Python.".to_string(),
+                    metadata: note_metadata,
+                },
+            ],
+            &BuildArtifactOptions {
+                source_root: SourceRoot {
+                    id: "root".to_string(),
+                    original_path: source.display().to_string(),
+                },
+                embedding_backend: EmbeddingBackend::Hashing { dimensions: 128 },
+                chunking: Default::default(),
+            },
+        )
+        .unwrap();
+
+        let mut retriever = Retriever::open(&artifact, None).unwrap();
+        let hits = retriever
+            .search(
+                "document retrieval",
+                SearchOptions {
+                    relative_path_prefix: Some("guides/".to_string()),
+                    metadata: guide_metadata,
+                    ..SearchOptions::default()
+                },
+            )
+            .unwrap();
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].relative_path, "guides/rust.md");
     }
 }

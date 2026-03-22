@@ -1,11 +1,17 @@
 use anyhow::{anyhow, Result};
-use inkdex_core::{build_artifact, BuildArtifactOptions, BuildStats, NormalizedDocument, SourceRoot};
+use inkdex_core::{
+    build_artifact, BuildArtifactOptions, BuildStats, NormalizedDocument, SourceRoot,
+};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-pub fn build_from_directory(input: &Path, output: &Path, mut options: BuildArtifactOptions) -> Result<BuildStats> {
+pub fn build_from_directory(
+    input: &Path,
+    output: &Path,
+    mut options: BuildArtifactOptions,
+) -> Result<BuildStats> {
     let source_root = input.canonicalize()?;
     options.source_root = SourceRoot {
         id: "root".to_string(),
@@ -17,7 +23,10 @@ pub fn build_from_directory(input: &Path, output: &Path, mut options: BuildArtif
 
 fn read_documents(root: &Path) -> Result<Vec<NormalizedDocument>> {
     let mut documents = Vec::new();
-    for entry in WalkDir::new(root).into_iter().filter_map(std::result::Result::ok) {
+    for entry in WalkDir::new(root)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+    {
         if !entry.file_type().is_file() || !supported_extension(entry.path()) {
             continue;
         }

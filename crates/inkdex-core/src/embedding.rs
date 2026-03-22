@@ -1,61 +1,87 @@
 use crate::{error::Result, InkdexError};
 use anyhow::anyhow;
+use model2vec_rs::model::StaticModel;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EmbeddingBackend {
-    Fastembed {
-        model_name: String,
-        model_code: String,
-    },
-    Hashing {
-        dimensions: usize,
-    },
+    Model2Vec { model: String, batch_size: usize },
+    Hashing { dimensions: usize },
 }
 
 impl Default for EmbeddingBackend {
     fn default() -> Self {
-        Self::Hashing { dimensions: 256 }
+        Self::Model2Vec {
+            model: "minishlab/potion-base-2M".to_string(),
+            batch_size: 256,
+        }
     }
 }
 
 pub struct Embedder {
     backend: EmbeddingBackend,
+    model2vec: Option<StaticModel>,
 }
 
 impl Embedder {
     pub fn new(backend: EmbeddingBackend) -> Result<Self> {
-        if matches!(backend, EmbeddingBackend::Fastembed { .. }) {
-            return Err(InkdexError::Embedding(anyhow!(
-                "fastembed backend is not enabled in this build"
-            )));
-        }
-        Ok(Self { backend })
+        let model2vec = match &backend {
+            EmbeddingBackend::Model2Vec { model, .. } => Some(
+                StaticModel::from_pretrained(model, None, None, None)
+                    .map_err(|error| InkdexError::Embedding(anyhow!(error.to_string())))?,
+            ),
+            EmbeddingBackend::Hashing { .. } => None,
+        };
+        Ok(Self { backend, model2vec })
     }
 
     pub fn backend(&self) -> &EmbeddingBackend {
         &self.backend
     }
 
-    pub fn embed_passages(&mut self, inputs: &[String]) -> Result<Vec<Vec<f32>>> {
-        self.embed_prefixed("passage: ", inputs)
+    pub fn embed_texts(&mut self, inputs: &[String]) -> Result<Vec<Vec<f32>>> {
+        self.embed(inputs)
     }
 
-    pub fn embed_queries(&mut self, inputs: &[String]) -> Result<Vec<Vec<f32>>> {
-        self.embed_prefixed("query: ", inputs)
-    }
-
-    fn embed_prefixed(&mut self, prefix: &str, inputs: &[String]) -> Result<Vec<Vec<f32>>> {
-        match &self.backend {
-            EmbeddingBackend::Fastembed { .. } => Err(InkdexError::Embedding(anyhow!(
-                "fastembed backend is not enabled in this build"
-            ))),
-            EmbeddingBackend::Hashing { dimensions } => Ok(inputs
+    fn embed(&mut self, inputs: &[String]) -> Result<Vec<Vec<f32>>> {
+        match (&self.backend, self.model2vec.as_ref()) {
+            (EmbeddingBackend::Model2Vec { batch_size, .. }, Some(model)) => {
+                Ok(model.encode_with_args(inputs, Some(512), *batch_size))
+            }
+            (EmbeddingBackend::Hashing { dimensions }, _) => Ok(inputs
                 .iter()
-                .map(|value| hashing_embedding(&format!("{prefix}{value}"), *dimensions))
+                .map(|value| hashing_embedding(value, *dimensions))
                 .collect()),
+            _ => Err(InkdexError::Embedding(anyhow!(
+                "embedding backend was not initialized"
+            ))),
         }
     }
+}
+
+pub fn format_query_for_embedding(query: &str) -> String {
+    format!("query: {}", normalize_text(query))
+}
+
+pub fn format_chunk_for_embedding(
+    relative_path: &str,
+    title: Option<&str>,
+    heading_path: &[String],
+    chunk_text: &str,
+) -> String {
+    let mut lines = Vec::new();
+    lines.push(format!("path: {}", normalize_text(relative_path)));
+    if let Some(title) = title.filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("title: {}", normalize_text(title)));
+    }
+    if !heading_path.is_empty() {
+        lines.push(format!(
+            "headings: {}",
+            normalize_text(&heading_path.join(" > "))
+        ));
+    }
+    lines.push(format!("text: {}", normalize_text(chunk_text)));
+    lines.join("\n")
 }
 
 pub fn vector_to_bytes(vector: &[f32]) -> Vec<u8> {
@@ -66,7 +92,8 @@ pub fn vector_to_bytes(vector: &[f32]) -> Vec<u8> {
 }
 
 pub fn bytes_to_vector(bytes: &[u8]) -> Vec<f32> {
-    bytes.chunks_exact(4)
+    bytes
+        .chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect()
 }
@@ -107,5 +134,36 @@ fn normalize(vector: &mut [f32]) {
     }
     for value in vector {
         *value /= norm;
+    }
+}
+
+fn normalize_text(input: &str) -> String {
+    input.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_chunk_for_embedding, format_query_for_embedding};
+
+    #[test]
+    fn formats_query_for_embedding() {
+        assert_eq!(
+            format_query_for_embedding("  rust retrieval  "),
+            "query: rust retrieval"
+        );
+    }
+
+    #[test]
+    fn formats_chunk_with_document_context() {
+        let formatted = format_chunk_for_embedding(
+            "docs/guide.md",
+            Some("Guide"),
+            &["Intro".to_string(), "Usage".to_string()],
+            "hello   world",
+        );
+        assert!(formatted.contains("path: docs/guide.md"));
+        assert!(formatted.contains("title: Guide"));
+        assert!(formatted.contains("headings: Intro > Usage"));
+        assert!(formatted.contains("text: hello world"));
     }
 }

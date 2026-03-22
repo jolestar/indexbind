@@ -1,5 +1,5 @@
 use crate::chunking::{chunk_document, ChunkingOptions};
-use crate::embedding::{vector_to_bytes, Embedder, EmbeddingBackend};
+use crate::embedding::{format_chunk_for_embedding, vector_to_bytes, Embedder, EmbeddingBackend};
 use crate::types::{NormalizedDocument, SourceRoot};
 use crate::{InkdexError, Result};
 use blake3::Hasher;
@@ -72,22 +72,37 @@ pub fn build_artifact(
     )?;
     connection.execute(
         "INSERT INTO artifact_meta (key, value) VALUES (?1, ?2)",
-        params!["chunking", serde_json::to_string(&json!({
-            "target_tokens": options.chunking.target_tokens,
-            "overlap_tokens": options.chunking.overlap_tokens,
-        }))?],
+        params![
+            "chunking",
+            serde_json::to_string(&json!({
+                "target_tokens": options.chunking.target_tokens,
+                "overlap_tokens": options.chunking.overlap_tokens,
+            }))?
+        ],
     )?;
 
     let transaction = connection.unchecked_transaction()?;
     for document in documents {
         let doc_id = build_doc_id(&options.source_root.id, &document.relative_path);
-        let content_hash = blake3::hash(document.content.as_bytes()).to_hex().to_string();
-        let chunks = chunk_document(&doc_id, &document.content, &options.chunking);
-        let chunk_texts = chunks
+        let content_hash = blake3::hash(document.content.as_bytes())
+            .to_hex()
+            .to_string();
+        let mut chunks = chunk_document(&doc_id, &document.content, &options.chunking);
+        for chunk in &mut chunks {
+            chunk.chunk_id = build_chunk_id(&doc_id, chunk.ordinal);
+        }
+        let embedding_inputs = chunks
             .iter()
-            .map(|chunk| chunk.chunk_text.clone())
+            .map(|chunk| {
+                format_chunk_for_embedding(
+                    &document.relative_path,
+                    document.title.as_deref(),
+                    &chunk.heading_path,
+                    &chunk.chunk_text,
+                )
+            })
             .collect::<Vec<_>>();
-        let embeddings = embedder.embed_passages(&chunk_texts)?;
+        let embeddings = embedder.embed_texts(&embedding_inputs)?;
 
         transaction.execute(
             "INSERT INTO documents (
@@ -201,4 +216,14 @@ fn build_doc_id(source_root_id: &str, relative_path: &str) -> String {
     hasher.update(b":");
     hasher.update(relative_path.as_bytes());
     hasher.finalize().to_hex().to_string()
+}
+
+fn build_chunk_id(doc_id: &str, ordinal: usize) -> i64 {
+    let mut hasher = Hasher::new();
+    hasher.update(doc_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(ordinal.to_string().as_bytes());
+    let mut bytes = [0_u8; 8];
+    bytes.copy_from_slice(&hasher.finalize().as_bytes()[..8]);
+    i64::from_be_bytes(bytes) & i64::MAX
 }
