@@ -9,8 +9,15 @@ use std::sync::Mutex;
 pub struct NodeSearchOptions {
     pub top_k: Option<u32>,
     pub hybrid: Option<bool>,
+    pub reranker: Option<NodeRerankerOptions>,
     pub relative_path_prefix: Option<String>,
     pub metadata: Option<HashMap<String, String>>,
+}
+
+#[napi(object)]
+pub struct NodeRerankerOptions {
+    pub kind: Option<String>,
+    pub candidate_pool_size: Option<u32>,
 }
 
 #[napi(object)]
@@ -103,6 +110,23 @@ impl NativeIndex {
                 .as_ref()
                 .and_then(|value| value.hybrid)
                 .unwrap_or(true),
+            reranker: options
+                .as_ref()
+                .and_then(|value| value.reranker.as_ref())
+                .map(|value| {
+                    Ok(inkdex_core::RerankerOptions {
+                        kind: match value.kind.as_deref() {
+                            Some("heuristic-v1") | None => inkdex_core::RerankerKind::HeuristicV1,
+                            Some(other) => {
+                                return Err(Error::from_reason(format!(
+                                    "unsupported reranker kind: {other}"
+                                )))
+                            }
+                        },
+                        candidate_pool_size: value.candidate_pool_size.unwrap_or(50) as usize,
+                    })
+                })
+                .transpose()?,
             relative_path_prefix: options
                 .as_ref()
                 .and_then(|value| value.relative_path_prefix.clone()),

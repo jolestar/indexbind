@@ -64,8 +64,14 @@ export interface NativeLoadedDocument {
 export interface NativeSearchOptions {
   topK?: number;
   hybrid?: boolean;
+  reranker?: NativeRerankerOptions;
   relativePathPrefix?: string;
   metadata?: Record<string, string>;
+}
+
+export interface NativeRerankerOptions {
+  kind?: 'heuristic-v1';
+  candidatePoolSize?: number;
 }
 
 export interface NativeIndex {

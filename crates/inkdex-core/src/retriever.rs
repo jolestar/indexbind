@@ -28,9 +28,38 @@ pub struct SearchOptions {
     pub hybrid: bool,
     pub candidate_multiplier: usize,
     #[serde(default)]
+    pub reranker: Option<RerankerOptions>,
+    #[serde(default)]
     pub relative_path_prefix: Option<String>,
     #[serde(default)]
     pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RerankerOptions {
+    #[serde(default = "default_reranker_kind")]
+    pub kind: RerankerKind,
+    pub candidate_pool_size: usize,
+}
+
+impl Default for RerankerOptions {
+    fn default() -> Self {
+        Self {
+            kind: RerankerKind::HeuristicV1,
+            candidate_pool_size: 50,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum RerankerKind {
+    #[default]
+    HeuristicV1,
+}
+
+fn default_reranker_kind() -> RerankerKind {
+    RerankerKind::HeuristicV1
 }
 
 impl Default for SearchOptions {
@@ -39,6 +68,7 @@ impl Default for SearchOptions {
             top_k: 10,
             hybrid: true,
             candidate_multiplier: 8,
+            reranker: None,
             relative_path_prefix: None,
             metadata: BTreeMap::new(),
         }
@@ -93,7 +123,14 @@ impl Retriever {
         if allowed_doc_ids.is_empty() {
             return Ok(Vec::new());
         }
-        let limit = (options.top_k * options.candidate_multiplier.max(1)).max(options.top_k);
+        let rerank_candidate_limit = options
+            .reranker
+            .as_ref()
+            .map(|config| config.candidate_pool_size.max(options.top_k))
+            .unwrap_or(options.top_k);
+        let limit = (options.top_k * options.candidate_multiplier.max(1))
+            .max(rerank_candidate_limit)
+            .max(options.top_k);
         let formatted_query = format_query_for_embedding(query);
         let query_embedding = self
             .embedder
@@ -107,7 +144,8 @@ impl Retriever {
         } else {
             Vec::new()
         };
-        let hits = fuse_documents(&self.documents, &vector_docs, &lexical_docs, options.top_k);
+        let fused_hits = fuse_documents(&self.documents, &vector_docs, &lexical_docs, limit);
+        let hits = rerank_documents(query, &fused_hits, options.reranker.as_ref(), options.top_k);
         Ok(hits)
     }
 
@@ -339,6 +377,107 @@ fn fuse_documents(
     hits
 }
 
+fn rerank_documents(
+    query: &str,
+    hits: &[DocumentHit],
+    config: Option<&RerankerOptions>,
+    top_k: usize,
+) -> Vec<DocumentHit> {
+    let Some(config) = config else {
+        return hits.iter().take(top_k).cloned().collect();
+    };
+
+    let candidate_limit = config.candidate_pool_size.max(top_k);
+    let query_tokens = tokenize(query);
+    let normalized_query = normalize_text(query);
+    let mut reranked = hits
+        .iter()
+        .take(candidate_limit)
+        .cloned()
+        .map(|mut hit| {
+            let rerank_score = match config.kind {
+                RerankerKind::HeuristicV1 => {
+                    score_document_heuristic(&hit, &query_tokens, &normalized_query)
+                }
+            };
+            hit.score = hit.score * 0.35 + rerank_score * 0.65;
+            hit
+        })
+        .collect::<Vec<_>>();
+
+    reranked.sort_by(|left, right| {
+        right
+            .score
+            .partial_cmp(&left.score)
+            .unwrap_or(Ordering::Equal)
+    });
+    reranked.truncate(top_k);
+    reranked
+}
+
+fn score_document_heuristic(
+    hit: &DocumentHit,
+    query_tokens: &[String],
+    normalized_query: &str,
+) -> f32 {
+    let title = hit.title.as_deref().unwrap_or_default();
+    let heading = hit.best_match.heading_path.join(" ");
+    let title_norm = normalize_text(title);
+    let path_norm = normalize_text(&hit.relative_path);
+    let heading_norm = normalize_text(&heading);
+    let excerpt_norm = normalize_text(&hit.best_match.excerpt);
+
+    let title_coverage = score_token_coverage(query_tokens, &title_norm);
+    let heading_coverage = score_token_coverage(query_tokens, &heading_norm);
+    let excerpt_coverage = score_token_coverage(query_tokens, &excerpt_norm);
+    let path_coverage = score_token_coverage(query_tokens, &path_norm);
+
+    let phrase_bonus = [
+        contains_phrase(&title_norm, normalized_query, 0.30),
+        contains_phrase(&heading_norm, normalized_query, 0.20),
+        contains_phrase(&excerpt_norm, normalized_query, 0.15),
+        contains_phrase(&path_norm, normalized_query, 0.05),
+    ]
+    .into_iter()
+    .sum::<f32>();
+
+    title_coverage * 0.45
+        + heading_coverage * 0.20
+        + excerpt_coverage * 0.25
+        + path_coverage * 0.10
+        + phrase_bonus
+}
+
+fn score_token_coverage(query_tokens: &[String], haystack: &str) -> f32 {
+    if query_tokens.is_empty() {
+        return 0.0;
+    }
+
+    let matched = query_tokens
+        .iter()
+        .filter(|token| haystack.contains(token.as_str()))
+        .count();
+    matched as f32 / query_tokens.len() as f32
+}
+
+fn contains_phrase(haystack: &str, needle: &str, weight: f32) -> f32 {
+    if needle.is_empty() || !haystack.contains(needle) {
+        return 0.0;
+    }
+    weight
+}
+
+fn normalize_text(input: &str) -> String {
+    input
+        .chars()
+        .map(|ch| if ch.is_alphanumeric() { ch } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
 fn load_info(connection: &Connection) -> Result<ArtifactInfo> {
     let mut statement = connection.prepare("SELECT key, value FROM artifact_meta")?;
     let mut rows = statement.query([])?;
@@ -466,7 +605,9 @@ fn build_fts_query(input: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Retriever, SearchOptions};
+    use super::{
+        rerank_documents, BestMatch, DocumentHit, RerankerOptions, Retriever, SearchOptions,
+    };
     use crate::artifact::{build_artifact, BuildArtifactOptions};
     use crate::embedding::EmbeddingBackend;
     use crate::types::{NormalizedDocument, SourceRoot};
@@ -574,5 +715,47 @@ mod tests {
 
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].relative_path, "guides/rust.md");
+    }
+
+    #[test]
+    fn reranker_prefers_title_and_heading_matches() {
+        let hits = vec![
+            DocumentHit {
+                doc_id: "doc-1".to_string(),
+                original_path: "/tmp/guides/rust.md".to_string(),
+                relative_path: "guides/rust.md".to_string(),
+                title: Some("Rust Guide".to_string()),
+                score: 0.05,
+                best_match: BestMatch {
+                    chunk_id: 1,
+                    excerpt: "installation and setup".to_string(),
+                    heading_path: vec!["Quickstart".to_string()],
+                    char_start: 0,
+                    char_end: 10,
+                    score: 0.05,
+                },
+                metadata: BTreeMap::new(),
+            },
+            DocumentHit {
+                doc_id: "doc-2".to_string(),
+                original_path: "/tmp/notes/setup.md".to_string(),
+                relative_path: "notes/setup.md".to_string(),
+                title: Some("Setup Notes".to_string()),
+                score: 0.08,
+                best_match: BestMatch {
+                    chunk_id: 2,
+                    excerpt: "rust guide quickstart walkthrough".to_string(),
+                    heading_path: vec!["Reference".to_string()],
+                    char_start: 0,
+                    char_end: 10,
+                    score: 0.08,
+                },
+                metadata: BTreeMap::new(),
+            },
+        ];
+
+        let reranked = rerank_documents("rust guide", &hits, Some(&RerankerOptions::default()), 2);
+
+        assert_eq!(reranked[0].doc_id, "doc-1");
     }
 }

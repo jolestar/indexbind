@@ -11,8 +11,14 @@ import {
 export interface SearchOptions {
   topK?: number;
   hybrid?: boolean;
+  reranker?: RerankerOptions;
   relativePathPrefix?: string;
   metadata?: Record<string, string>;
+}
+
+export interface RerankerOptions {
+  kind?: 'heuristic-v1';
+  candidatePoolSize?: number;
 }
 
 export interface BestMatch {
@@ -73,6 +79,7 @@ export class Index {
     const nativeOptions: NativeSearchOptions = {
       topK: options.topK,
       hybrid: options.hybrid,
+      reranker: options.reranker,
       relativePathPrefix: options.relativePathPrefix,
       metadata: options.metadata,
     };
