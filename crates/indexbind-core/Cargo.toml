@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 blake3.workspace = true
+getrandom.workspace = true
 model2vec-rs.workspace = true
 rusqlite.workspace = true
 serde.workspace = true

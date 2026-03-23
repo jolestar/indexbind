@@ -3,6 +3,7 @@ members = [
   "crates/indexbind-core",
   "crates/indexbind-build",
   "crates/indexbind-node",
+  "crates/indexbind-wasm",
 ]
 resolver = "2"
 
@@ -14,6 +15,7 @@ license = "MIT"
 [workspace.dependencies]
 anyhow = "1.0.100"
 blake3 = "1.8.2"
+getrandom = { version = "0.2.17", features = ["js"] }
 model2vec-rs = "0.1.4"
 napi = { version = "3.8.3", features = ["napi4"] }
 napi-build = "2.3.0"
@@ -21,6 +23,8 @@ napi-derive = "3.5.2"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+serde-wasm-bindgen = "0.6.5"
 tempfile = "3.23.0"
 thiserror = "2.0.16"
 walkdir = "2.5.0"
+wasm-bindgen = "0.2.114"

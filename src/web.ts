@@ -130,6 +130,11 @@ interface FusedScore {
   lexicalBest?: BestMatch;
 }
 
+interface WasmSearchBackend {
+  info(): unknown;
+  search(query: string, options?: unknown): unknown;
+}
+
 export class WebIndex {
   readonly #manifest: CanonicalArtifactManifest;
   readonly #documents: CanonicalDocumentRecord[];
@@ -137,6 +142,7 @@ export class WebIndex {
   readonly #chunks: CanonicalChunkRecord[];
   readonly #vectors: Float32Array[];
   readonly #postings: CanonicalPostings;
+  readonly #wasmIndex?: WasmSearchBackend;
 
   private constructor(
     manifest: CanonicalArtifactManifest,
@@ -144,6 +150,7 @@ export class WebIndex {
     chunks: CanonicalChunkRecord[],
     vectors: Float32Array[],
     postings: CanonicalPostings,
+    wasmIndex?: WasmSearchBackend,
   ) {
     this.#manifest = manifest;
     this.#documents = documents;
@@ -151,6 +158,7 @@ export class WebIndex {
     this.#chunks = chunks;
     this.#vectors = vectors;
     this.#postings = postings;
+    this.#wasmIndex = wasmIndex;
   }
 
   static async open(base: string | URL): Promise<WebIndex> {
@@ -160,7 +168,14 @@ export class WebIndex {
     const postings = await loadJson<CanonicalPostings>(base, manifest.files.postings);
     const vectorsBuffer = await loadArrayBuffer(base, manifest.files.vectors);
     const vectors = decodeVectors(vectorsBuffer, chunks.length, manifest.vectorDimensions);
-    return new WebIndex(manifest, documents, chunks, vectors, postings);
+    const wasmIndex = await maybeCreateWasmIndex(
+      manifest,
+      documents,
+      chunks,
+      vectorsBuffer,
+      postings,
+    );
+    return new WebIndex(manifest, documents, chunks, vectors, postings, wasmIndex);
   }
 
   info(): WebArtifactInfo {
@@ -178,6 +193,10 @@ export class WebIndex {
   }
 
   async search(query: string, options: SearchOptions = {}): Promise<DocumentHit[]> {
+    if (this.#wasmIndex) {
+      return this.#wasmIndex.search(query, options) as Promise<DocumentHit[]>;
+    }
+
     const topK = options.topK ?? 10;
     const candidateMultiplier = 8;
     const allowedDocIds = this.allowedDocIds(options);
@@ -319,6 +338,43 @@ export class WebIndex {
 
 export async function openWebIndex(base: string | URL): Promise<WebIndex> {
   return WebIndex.open(base);
+}
+
+async function maybeCreateWasmIndex(
+  manifest: CanonicalArtifactManifest,
+  documents: CanonicalDocumentRecord[],
+  chunks: CanonicalChunkRecord[],
+  vectorsBuffer: ArrayBuffer,
+  postings: CanonicalPostings,
+): Promise<WasmSearchBackend | undefined> {
+  try {
+    if (!supportsWasmBackend(manifest.embeddingBackend)) {
+      return undefined;
+    }
+
+    const wasmModuleUrl = new URL('./wasm/indexbind_wasm.js', import.meta.url).href;
+    const wasmModule = (await import(wasmModuleUrl)) as {
+      default: (input?: unknown) => Promise<void>;
+      WasmIndex: new (
+        manifest: unknown,
+        documents: unknown,
+        chunks: unknown,
+        vectors: Uint8Array,
+        postings: unknown,
+      ) => WasmSearchBackend;
+    };
+    const wasmBinary = await loadWasmBinary();
+    await wasmModule.default({ module_or_path: wasmBinary });
+    return new wasmModule.WasmIndex(
+      manifest,
+      documents,
+      chunks,
+      new Uint8Array(vectorsBuffer),
+      postings,
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 function documentMatches(document: CanonicalDocumentRecord, options: SearchOptions): boolean {
@@ -680,6 +736,17 @@ async function loadArrayBuffer(base: string | URL, fileName: string): Promise<Ar
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
+async function loadWasmBinary(): Promise<Uint8Array | URL> {
+  const wasmUrl = new URL('./wasm/indexbind_wasm_bg.wasm', import.meta.url);
+  if (!isNodeRuntime()) {
+    return wasmUrl;
+  }
+
+  const fs = await import('node:fs/promises');
+  const buffer = await fs.readFile(wasmUrl);
+  return new Uint8Array(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+}
+
 function resolveResource(base: string | URL, fileName: string): ResolvedResource {
   if (base instanceof URL) {
     return {
@@ -736,6 +803,15 @@ function extractHashingDimensions(backend: unknown): number {
     return Number(record.dimensions);
   }
   throw new Error('web runtime only supports hashing embedding backend');
+}
+
+function supportsWasmBackend(backend: unknown): boolean {
+  try {
+    extractHashingDimensions(backend);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function joinFilePath(base: string, fileName: string): string {
