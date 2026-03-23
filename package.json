@@ -42,7 +42,8 @@
     "release:verify": "node scripts/verify-release.mjs",
     "release:prepare-root": "node scripts/prepare-root-package.mjs",
     "release:prepare-native": "node scripts/prepare-native-package.mjs",
-    "release:smoke-install": "node scripts/smoke-install.mjs"
+    "release:smoke-install": "node scripts/smoke-install.mjs",
+    "release:publish:github": "node scripts/publish-from-github-release.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

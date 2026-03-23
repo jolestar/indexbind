@@ -10,13 +10,15 @@ Install the Node package:
 npm install indexbind
 ```
 
+On supported platforms, npm will also install the matching prebuilt native package automatically through `optionalDependencies`.
+
 Supported prebuilt targets in the initial release:
 
 - macOS arm64
 - macOS x64
 - Linux x64 (glibc)
 
-Windows native prebuilds are not included in the initial release. On Windows, use WSL with the Linux x64 package path for `v0.1.0`.
+Windows native prebuilds are not included in the initial release. On Windows, use WSL and run `npm install indexbind` inside the WSL environment so the Linux x64 native package can be resolved there.
 
 If a prebuilt addon is unavailable for your platform, install from source in a Rust toolchain environment and run:
 
@@ -115,7 +117,7 @@ The published npm release is split into:
 - `indexbind` for the TypeScript API and native loader
 - platform packages such as `@indexbind/native-darwin-x64` for prebuilt NAPI binaries
 
-This keeps installs small while preserving a source-build path for unsupported targets.
+In normal use you only install `indexbind`; npm resolves the platform package automatically when a matching prebuilt target exists. This keeps installs small while preserving a source-build path for unsupported targets.
 
 ## Design Constraints
 
