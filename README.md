@@ -62,6 +62,13 @@ Inspect an existing artifact:
 cargo run -p inkdex-build -- inspect ./index.sqlite
 ```
 
+Run the bundled benchmark fixture:
+
+```bash
+cargo run -p inkdex-build -- build fixtures/benchmark/basic/docs /tmp/inkdex-basic.sqlite hashing
+cargo run -p inkdex-build -- benchmark /tmp/inkdex-basic.sqlite fixtures/benchmark/basic/queries.json
+```
+
 From Node, open the artifact and run document-first search:
 
 ```ts

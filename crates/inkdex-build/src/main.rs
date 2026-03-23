@@ -1,8 +1,10 @@
 use anyhow::{anyhow, bail, Result};
 use inkdex_build::build_from_directory;
-use inkdex_core::{BuildArtifactOptions, EmbeddingBackend, Retriever};
+use inkdex_core::{BuildArtifactOptions, EmbeddingBackend, Retriever, SearchOptions};
+use serde::Deserialize;
 use serde_json::json;
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
@@ -14,6 +16,7 @@ fn main() -> Result<()> {
     match command_or_input.as_str() {
         "build" => build_command(args.collect()),
         "inspect" => inspect_command(args.collect()),
+        "benchmark" => benchmark_command(args.collect()),
         input => build_command_with_input(input.to_string(), args.collect()),
     }
 }
@@ -71,6 +74,67 @@ fn inspect_command(args: Vec<String>) -> Result<()> {
     Ok(())
 }
 
+fn benchmark_command(args: Vec<String>) -> Result<()> {
+    let mut args = args.into_iter();
+    let artifact = args
+        .next()
+        .ok_or_else(|| anyhow!("usage: inkdex-build benchmark <artifact-file> <queries-json>"))?;
+    let queries_path = args
+        .next()
+        .ok_or_else(|| anyhow!("usage: inkdex-build benchmark <artifact-file> <queries-json>"))?;
+    let payload = fs::read_to_string(&queries_path)?;
+    let fixture: BenchmarkFixture = serde_json::from_str(&payload)?;
+    let mut retriever = Retriever::open(&PathBuf::from(artifact), None)?;
+
+    let mut passed = 0usize;
+    let mut results = Vec::new();
+    for case in &fixture.queries {
+        let hits = retriever.search(
+            &case.query,
+            SearchOptions {
+                top_k: case.top_k.unwrap_or(5),
+                ..SearchOptions::default()
+            },
+        )?;
+        let top_hit = hits.first().map(|hit| hit.relative_path.clone());
+        let success = top_hit.as_deref() == Some(case.expected_top_hit.as_str());
+        if success {
+            passed += 1;
+        }
+        results.push(json!({
+            "name": case.name,
+            "query": case.query,
+            "expectedTopHit": case.expected_top_hit,
+            "actualTopHit": top_hit,
+            "passed": success,
+        }));
+    }
+
+    let summary = json!({
+        "fixture": fixture.name,
+        "total": fixture.queries.len(),
+        "passed": passed,
+        "failed": fixture.queries.len().saturating_sub(passed),
+        "results": results,
+    });
+    println!("{}", serde_json::to_string_pretty(&summary)?);
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct BenchmarkFixture {
+    name: String,
+    queries: Vec<BenchmarkQuery>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BenchmarkQuery {
+    name: String,
+    query: String,
+    expected_top_hit: String,
+    top_k: Option<usize>,
+}
+
 fn usage() -> &'static str {
-    "usage:\n  inkdex-build build <input-dir> <output-file> [hashing|<model-id>]\n  inkdex-build inspect <artifact-file>\n\nFor backward compatibility, `inkdex-build <input-dir> <output-file> [hashing|<model-id>]` still works."
+    "usage:\n  inkdex-build build <input-dir> <output-file> [hashing|<model-id>]\n  inkdex-build inspect <artifact-file>\n  inkdex-build benchmark <artifact-file> <queries-json>\n\nFor backward compatibility, `inkdex-build <input-dir> <output-file> [hashing|<model-id>]` still works."
 }

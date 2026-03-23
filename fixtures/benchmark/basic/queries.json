@@ -1,0 +1,23 @@
+{
+  "name": "basic",
+  "queries": [
+    {
+      "name": "rust-guide",
+      "query": "rust toolchain setup",
+      "expected_top_hit": "guides/rust.md",
+      "top_k": 3
+    },
+    {
+      "name": "python-install",
+      "query": "python package installation",
+      "expected_top_hit": "guides/python.md",
+      "top_k": 3
+    },
+    {
+      "name": "network-latency",
+      "query": "latency packet traces",
+      "expected_top_hit": "ops/network.md",
+      "top_k": 3
+    }
+  ]
+}

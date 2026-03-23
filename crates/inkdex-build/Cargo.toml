@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 walkdir.workspace = true
 inkdex-core = { path = "../inkdex-core" }

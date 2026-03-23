@@ -11,6 +11,7 @@
     "build:native:release": "cargo build -p inkdex-node --release && node scripts/copy-native.mjs --release",
     "build": "npm run build:native && tsc -p tsconfig.json",
     "inspect:artifact": "cargo run -p inkdex-build -- inspect",
+    "benchmark:basic": "tmpdir=$(mktemp -d) && cargo run -p inkdex-build -- build fixtures/benchmark/basic/docs \"$tmpdir/basic.sqlite\" hashing && cargo run -p inkdex-build -- benchmark \"$tmpdir/basic.sqlite\" fixtures/benchmark/basic/queries.json",
     "check": "tsc --noEmit -p tsconfig.json && cargo check --workspace",
     "test": "cargo test --workspace"
   },
