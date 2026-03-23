@@ -2,6 +2,7 @@ use crate::{error::Result, InkdexError};
 use anyhow::anyhow;
 use model2vec_rs::model::StaticModel;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EmbeddingBackend {
@@ -84,6 +85,36 @@ pub fn format_chunk_for_embedding(
     lines.join("\n")
 }
 
+pub fn format_document_for_reranking(
+    relative_path: &str,
+    title: Option<&str>,
+    heading_path: &[String],
+    excerpt: &str,
+    metadata: &BTreeMap<String, String>,
+) -> String {
+    let mut lines = Vec::new();
+    lines.push(format!("path: {}", normalize_text(relative_path)));
+    if let Some(title) = title.filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("title: {}", normalize_text(title)));
+    }
+    if !heading_path.is_empty() {
+        lines.push(format!(
+            "headings: {}",
+            normalize_text(&heading_path.join(" > "))
+        ));
+    }
+    if !metadata.is_empty() {
+        let metadata_line = metadata
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        lines.push(format!("metadata: {}", normalize_text(&metadata_line)));
+    }
+    lines.push(format!("excerpt: {}", normalize_text(excerpt)));
+    lines.join("\n")
+}
+
 pub fn vector_to_bytes(vector: &[f32]) -> Vec<u8> {
     vector
         .iter()
@@ -143,7 +174,10 @@ fn normalize_text(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_chunk_for_embedding, format_query_for_embedding};
+    use super::{
+        format_chunk_for_embedding, format_document_for_reranking, format_query_for_embedding,
+    };
+    use std::collections::BTreeMap;
 
     #[test]
     fn formats_query_for_embedding() {
@@ -165,5 +199,23 @@ mod tests {
         assert!(formatted.contains("title: Guide"));
         assert!(formatted.contains("headings: Intro > Usage"));
         assert!(formatted.contains("text: hello world"));
+    }
+
+    #[test]
+    fn formats_document_for_reranking() {
+        let mut metadata = BTreeMap::new();
+        metadata.insert("lang".to_string(), "rust".to_string());
+        let formatted = format_document_for_reranking(
+            "docs/guide.md",
+            Some("Guide"),
+            &["Intro".to_string()],
+            "hello   world",
+            &metadata,
+        );
+        assert!(formatted.contains("path: docs/guide.md"));
+        assert!(formatted.contains("title: Guide"));
+        assert!(formatted.contains("headings: Intro"));
+        assert!(formatted.contains("metadata: lang=rust"));
+        assert!(formatted.contains("excerpt: hello world"));
     }
 }

@@ -116,7 +116,8 @@ impl NativeIndex {
                 .map(|value| {
                     Ok(inkdex_core::RerankerOptions {
                         kind: match value.kind.as_deref() {
-                            Some("heuristic-v1") | None => inkdex_core::RerankerKind::HeuristicV1,
+                            Some("embedding-v1") | None => inkdex_core::RerankerKind::EmbeddingV1,
+                            Some("heuristic-v1") => inkdex_core::RerankerKind::HeuristicV1,
                             Some(other) => {
                                 return Err(Error::from_reason(format!(
                                     "unsupported reranker kind: {other}"

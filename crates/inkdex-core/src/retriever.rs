@@ -1,5 +1,6 @@
 use crate::embedding::{
-    bytes_to_vector, cosine_similarity, format_query_for_embedding, Embedder, EmbeddingBackend,
+    bytes_to_vector, cosine_similarity, format_document_for_reranking, format_query_for_embedding,
+    Embedder, EmbeddingBackend,
 };
 use crate::types::{
     BestMatch, DocumentHit, LoadedDocument, SourceRoot, StoredChunk, StoredDocument,
@@ -45,7 +46,7 @@ pub struct RerankerOptions {
 impl Default for RerankerOptions {
     fn default() -> Self {
         Self {
-            kind: RerankerKind::HeuristicV1,
+            kind: RerankerKind::EmbeddingV1,
             candidate_pool_size: 50,
         }
     }
@@ -55,11 +56,12 @@ impl Default for RerankerOptions {
 #[serde(rename_all = "kebab-case")]
 pub enum RerankerKind {
     #[default]
+    EmbeddingV1,
     HeuristicV1,
 }
 
 fn default_reranker_kind() -> RerankerKind {
-    RerankerKind::HeuristicV1
+    RerankerKind::EmbeddingV1
 }
 
 impl Default for SearchOptions {
@@ -145,7 +147,8 @@ impl Retriever {
             Vec::new()
         };
         let fused_hits = fuse_documents(&self.documents, &vector_docs, &lexical_docs, limit);
-        let hits = rerank_documents(query, &fused_hits, options.reranker.as_ref(), options.top_k);
+        let hits =
+            self.rerank_documents(query, &fused_hits, options.reranker.as_ref(), options.top_k)?;
         Ok(hits)
     }
 
@@ -236,6 +239,27 @@ impl Retriever {
         }
 
         Ok(aggregate_ranked_documents(chunk_scores.into_iter(), limit))
+    }
+
+    fn rerank_documents(
+        &mut self,
+        query: &str,
+        hits: &[DocumentHit],
+        config: Option<&RerankerOptions>,
+        top_k: usize,
+    ) -> Result<Vec<DocumentHit>> {
+        let Some(config) = config else {
+            return Ok(hits.iter().take(top_k).cloned().collect());
+        };
+
+        match config.kind {
+            RerankerKind::EmbeddingV1 => {
+                rerank_documents_with_embeddings(&mut self.embedder, query, hits, config, top_k)
+            }
+            RerankerKind::HeuristicV1 => {
+                Ok(rerank_documents_with_heuristic(query, hits, config, top_k))
+            }
+        }
     }
 }
 
@@ -377,16 +401,12 @@ fn fuse_documents(
     hits
 }
 
-fn rerank_documents(
+fn rerank_documents_with_heuristic(
     query: &str,
     hits: &[DocumentHit],
-    config: Option<&RerankerOptions>,
+    config: &RerankerOptions,
     top_k: usize,
 ) -> Vec<DocumentHit> {
-    let Some(config) = config else {
-        return hits.iter().take(top_k).cloned().collect();
-    };
-
     let candidate_limit = config.candidate_pool_size.max(top_k);
     let query_tokens = tokenize(query);
     let normalized_query = normalize_text(query);
@@ -395,11 +415,7 @@ fn rerank_documents(
         .take(candidate_limit)
         .cloned()
         .map(|mut hit| {
-            let rerank_score = match config.kind {
-                RerankerKind::HeuristicV1 => {
-                    score_document_heuristic(&hit, &query_tokens, &normalized_query)
-                }
-            };
+            let rerank_score = score_document_heuristic(&hit, &query_tokens, &normalized_query);
             hit.score = hit.score * 0.35 + rerank_score * 0.65;
             hit
         })
@@ -413,6 +429,58 @@ fn rerank_documents(
     });
     reranked.truncate(top_k);
     reranked
+}
+
+fn rerank_documents_with_embeddings(
+    embedder: &mut Embedder,
+    query: &str,
+    hits: &[DocumentHit],
+    config: &RerankerOptions,
+    top_k: usize,
+) -> Result<Vec<DocumentHit>> {
+    let candidate_limit = config.candidate_pool_size.max(top_k);
+    let query_tokens = tokenize(query);
+    let normalized_query = normalize_text(query);
+    let mut inputs = Vec::with_capacity(candidate_limit + 1);
+    inputs.push(format_query_for_embedding(query));
+    inputs.extend(hits.iter().take(candidate_limit).map(|hit| {
+        format_document_for_reranking(
+            &hit.relative_path,
+            hit.title.as_deref(),
+            &hit.best_match.heading_path,
+            &hit.best_match.excerpt,
+            &hit.metadata,
+        )
+    }));
+
+    let mut embeddings = embedder.embed_texts(&inputs)?;
+    if embeddings.len() <= 1 {
+        return Ok(hits.iter().take(top_k).cloned().collect());
+    }
+
+    let query_embedding = embeddings.remove(0);
+    let mut reranked = hits
+        .iter()
+        .take(candidate_limit)
+        .cloned()
+        .zip(embeddings.into_iter())
+        .map(|(mut hit, document_embedding)| {
+            let embedding_score = cosine_similarity(&query_embedding, &document_embedding).max(0.0);
+            let heuristic_score = score_document_heuristic(&hit, &query_tokens, &normalized_query);
+            let rerank_score = embedding_score * 0.8 + heuristic_score * 0.2;
+            hit.score = hit.score * 0.2 + rerank_score * 0.8;
+            hit
+        })
+        .collect::<Vec<_>>();
+
+    reranked.sort_by(|left, right| {
+        right
+            .score
+            .partial_cmp(&left.score)
+            .unwrap_or(Ordering::Equal)
+    });
+    reranked.truncate(top_k);
+    Ok(reranked)
 }
 
 fn score_document_heuristic(
@@ -606,10 +674,11 @@ fn build_fts_query(input: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        rerank_documents, BestMatch, DocumentHit, RerankerOptions, Retriever, SearchOptions,
+        rerank_documents_with_embeddings, rerank_documents_with_heuristic, BestMatch, DocumentHit,
+        RerankerKind, RerankerOptions, Retriever, SearchOptions,
     };
     use crate::artifact::{build_artifact, BuildArtifactOptions};
-    use crate::embedding::EmbeddingBackend;
+    use crate::embedding::{Embedder, EmbeddingBackend};
     use crate::types::{NormalizedDocument, SourceRoot};
     use std::collections::BTreeMap;
     use tempfile::tempdir;
@@ -718,7 +787,7 @@ mod tests {
     }
 
     #[test]
-    fn reranker_prefers_title_and_heading_matches() {
+    fn heuristic_reranker_prefers_title_and_heading_matches() {
         let hits = vec![
             DocumentHit {
                 doc_id: "doc-1".to_string(),
@@ -728,8 +797,8 @@ mod tests {
                 score: 0.05,
                 best_match: BestMatch {
                     chunk_id: 1,
-                    excerpt: "installation and setup".to_string(),
-                    heading_path: vec!["Quickstart".to_string()],
+                    excerpt: "rust guide quickstart and installation".to_string(),
+                    heading_path: vec!["Rust Guide".to_string()],
                     char_start: 0,
                     char_end: 10,
                     score: 0.05,
@@ -754,7 +823,65 @@ mod tests {
             },
         ];
 
-        let reranked = rerank_documents("rust guide", &hits, Some(&RerankerOptions::default()), 2);
+        let reranked = rerank_documents_with_heuristic(
+            "rust guide",
+            &hits,
+            &RerankerOptions {
+                kind: RerankerKind::HeuristicV1,
+                candidate_pool_size: 10,
+            },
+            2,
+        );
+
+        assert_eq!(reranked[0].doc_id, "doc-1");
+    }
+
+    #[test]
+    fn embedding_reranker_prefers_document_level_match() {
+        let hits = vec![
+            DocumentHit {
+                doc_id: "doc-1".to_string(),
+                original_path: "/tmp/guides/rust.md".to_string(),
+                relative_path: "guides/rust.md".to_string(),
+                title: Some("Rust Guide".to_string()),
+                score: 0.05,
+                best_match: BestMatch {
+                    chunk_id: 1,
+                    excerpt: "installation and setup".to_string(),
+                    heading_path: vec!["Quickstart".to_string()],
+                    char_start: 0,
+                    char_end: 10,
+                    score: 0.05,
+                },
+                metadata: BTreeMap::new(),
+            },
+            DocumentHit {
+                doc_id: "doc-2".to_string(),
+                original_path: "/tmp/notes/network.md".to_string(),
+                relative_path: "notes/network.md".to_string(),
+                title: Some("Network Notes".to_string()),
+                score: 0.08,
+                best_match: BestMatch {
+                    chunk_id: 2,
+                    excerpt: "latency budgeting and packet traces".to_string(),
+                    heading_path: vec!["Operations".to_string()],
+                    char_start: 0,
+                    char_end: 10,
+                    score: 0.08,
+                },
+                metadata: BTreeMap::new(),
+            },
+        ];
+
+        let mut embedder = Embedder::new(EmbeddingBackend::Hashing { dimensions: 2048 }).unwrap();
+        let reranked = rerank_documents_with_embeddings(
+            &mut embedder,
+            "rust guide",
+            &hits,
+            &RerankerOptions::default(),
+            2,
+        )
+        .unwrap();
 
         assert_eq!(reranked[0].doc_id, "doc-1");
     }

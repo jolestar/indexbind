@@ -70,7 +70,7 @@ export interface NativeSearchOptions {
 }
 
 export interface NativeRerankerOptions {
-  kind?: 'heuristic-v1';
+  kind?: 'embedding-v1' | 'heuristic-v1';
   candidatePoolSize?: number;
 }
 

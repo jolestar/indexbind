@@ -17,7 +17,7 @@ export interface SearchOptions {
 }
 
 export interface RerankerOptions {
-  kind?: 'heuristic-v1';
+  kind?: 'embedding-v1' | 'heuristic-v1';
   candidatePoolSize?: number;
 }
 
