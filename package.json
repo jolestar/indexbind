@@ -10,6 +10,7 @@
     "build:native": "cargo build -p inkdex-node && node scripts/copy-native.mjs",
     "build:native:release": "cargo build -p inkdex-node --release && node scripts/copy-native.mjs --release",
     "build": "npm run build:native && tsc -p tsconfig.json",
+    "inspect:artifact": "cargo run -p inkdex-build -- inspect",
     "check": "tsc --noEmit -p tsconfig.json && cargo check --workspace",
     "test": "cargo test --workspace"
   },

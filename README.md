@@ -48,6 +48,37 @@ The likely shape of the project is:
 - a compact persisted index artifact
 - a runtime library that can open that artifact and return ranked matches
 
+## Current Workflow
+
+Build an artifact from a local docs directory:
+
+```bash
+cargo run -p inkdex-build -- build ./docs ./index.sqlite
+```
+
+Inspect an existing artifact:
+
+```bash
+cargo run -p inkdex-build -- inspect ./index.sqlite
+```
+
+From Node, open the artifact and run document-first search:
+
+```ts
+import { openIndex } from 'inkdex';
+
+const index = await openIndex('./index.sqlite');
+const hits = await index.search('rust guide', {
+  reranker: { candidatePoolSize: 25 },
+});
+```
+
+Current native loading behavior:
+
+- local development prefers `native/inkdex.<platform>.node`
+- packaged installs can fall back to platform packages such as `@inkdex/native-darwin-x64`
+- unsupported or missing native targets now return an explicit platform-specific error
+
 ## Design Constraints
 
 - local-first
