@@ -2,6 +2,7 @@ use crate::{error::Result, IndexbindError};
 use anyhow::anyhow;
 use model2vec_rs::model::StaticModel;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,7 +91,7 @@ pub fn format_document_for_reranking(
     title: Option<&str>,
     heading_path: &[String],
     excerpt: &str,
-    metadata: &BTreeMap<String, String>,
+    metadata: &BTreeMap<String, Value>,
 ) -> String {
     let mut lines = Vec::new();
     lines.push(format!("path: {}", normalize_text(relative_path)));
@@ -106,7 +107,7 @@ pub fn format_document_for_reranking(
     if !metadata.is_empty() {
         let metadata_line = metadata
             .iter()
-            .map(|(key, value)| format!("{key}={value}"))
+            .map(|(key, value)| format!("{key}={}", format_metadata_value(value)))
             .collect::<Vec<_>>()
             .join(", ");
         lines.push(format!("metadata: {}", normalize_text(&metadata_line)));
@@ -172,11 +173,22 @@ fn normalize_text(input: &str) -> String {
     input.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+fn format_metadata_value(value: &Value) -> String {
+    match value {
+        Value::Null => "null".to_string(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::String(value) => value.clone(),
+        other => other.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         format_chunk_for_embedding, format_document_for_reranking, format_query_for_embedding,
     };
+    use serde_json::Value;
     use std::collections::BTreeMap;
 
     #[test]
@@ -204,7 +216,7 @@ mod tests {
     #[test]
     fn formats_document_for_reranking() {
         let mut metadata = BTreeMap::new();
-        metadata.insert("lang".to_string(), "rust".to_string());
+        metadata.insert("lang".to_string(), Value::String("rust".to_string()));
         let formatted = format_document_for_reranking(
             "docs/guide.md",
             Some("Guide"),

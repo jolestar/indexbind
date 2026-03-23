@@ -53,7 +53,7 @@ pub fn build_artifact(
 
     connection.execute(
         "INSERT INTO artifact_meta (key, value) VALUES (?1, ?2)",
-        params!["schema_version", "1"],
+        params!["schema_version", "2"],
     )?;
     connection.execute(
         "INSERT INTO artifact_meta (key, value) VALUES (?1, ?2)",
@@ -83,7 +83,10 @@ pub fn build_artifact(
 
     let transaction = connection.unchecked_transaction()?;
     for document in documents {
-        let doc_id = build_doc_id(&options.source_root.id, &document.relative_path);
+        let doc_id = document
+            .doc_id
+            .clone()
+            .unwrap_or_else(|| build_doc_id(&options.source_root.id, &document.relative_path));
         let content_hash = blake3::hash(document.content.as_bytes())
             .to_hex()
             .to_string();
@@ -106,15 +109,17 @@ pub fn build_artifact(
 
         transaction.execute(
             "INSERT INTO documents (
-                doc_id, source_root_id, original_path, relative_path, title, content_hash,
-                modified_at, chunk_count, metadata_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8)",
+                doc_id, source_root_id, source_path, relative_path, canonical_url, title,
+                summary, content_hash, modified_at, chunk_count, metadata_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, ?9, ?10)",
             params![
                 doc_id,
                 options.source_root.id,
-                document.original_path,
+                document.source_path,
                 document.relative_path,
+                document.canonical_url,
                 document.title,
+                document.summary,
                 content_hash,
                 chunks.len() as i64,
                 serde_json::to_string(&document.metadata)?,
@@ -175,9 +180,11 @@ fn initialize_schema(connection: &Connection) -> Result<()> {
         CREATE TABLE documents (
             doc_id TEXT PRIMARY KEY,
             source_root_id TEXT NOT NULL,
-            original_path TEXT NOT NULL,
+            source_path TEXT,
             relative_path TEXT NOT NULL,
+            canonical_url TEXT,
             title TEXT,
+            summary TEXT,
             content_hash TEXT NOT NULL,
             modified_at INTEGER,
             chunk_count INTEGER NOT NULL,

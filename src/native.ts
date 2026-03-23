@@ -79,9 +79,11 @@ export interface NativeBestMatch {
 
 export interface NativeDocumentHit {
   docId: string;
-  originalPath: string;
   relativePath: string;
+  canonicalUrl?: string;
   title?: string;
+  summary?: string;
+  metadata: string;
   score: number;
   bestMatch: NativeBestMatch;
 }
@@ -93,12 +95,6 @@ export interface NativeArtifactInfo {
   sourceRoot: string;
   documentCount: number;
   chunkCount: number;
-}
-
-export interface NativeLoadedDocument {
-  originalPath: string;
-  relativePath: string;
-  content: string;
 }
 
 export interface NativeSearchOptions {
@@ -117,19 +113,11 @@ export interface NativeRerankerOptions {
 export interface NativeIndex {
   info(): NativeArtifactInfo;
   search(query: string, options?: NativeSearchOptions): NativeDocumentHit[];
-  readDocument(
-    docId: string,
-    originalPath: string,
-    relativePath: string,
-    title: string | undefined,
-    score: number,
-    bestMatch: NativeBestMatch,
-  ): NativeLoadedDocument;
 }
 
 export interface NativeModule {
   NativeIndex: {
-    open(artifactPath: string, sourceRootOverride?: string): NativeIndex;
+    open(artifactPath: string): NativeIndex;
   };
 }
 

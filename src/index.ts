@@ -4,9 +4,16 @@ import {
   type NativeBestMatch,
   type NativeDocumentHit,
   type NativeIndex,
-  type NativeLoadedDocument,
   type NativeSearchOptions,
 } from './native.js';
+
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 export interface SearchOptions {
   topK?: number;
@@ -32,9 +39,11 @@ export interface BestMatch {
 
 export interface DocumentHit {
   docId: string;
-  originalPath: string;
   relativePath: string;
+  canonicalUrl?: string;
   title?: string;
+  summary?: string;
+  metadata: Record<string, JsonValue>;
   score: number;
   bestMatch: BestMatch;
 }
@@ -48,16 +57,6 @@ export interface ArtifactInfo {
   chunkCount: number;
 }
 
-export interface LoadedDocument {
-  originalPath: string;
-  relativePath: string;
-  content: string;
-}
-
-export interface OpenIndexOptions {
-  sourceRootOverride?: string;
-}
-
 export class Index {
   readonly #nativeIndex: NativeIndex;
 
@@ -65,9 +64,9 @@ export class Index {
     this.#nativeIndex = nativeIndex;
   }
 
-  static async open(artifactPath: string, options: OpenIndexOptions = {}): Promise<Index> {
+  static async open(artifactPath: string): Promise<Index> {
     const module = loadNativeModule();
-    const nativeIndex = module.NativeIndex.open(artifactPath, options.sourceRootOverride);
+    const nativeIndex = module.NativeIndex.open(artifactPath);
     return new Index(nativeIndex);
   }
 
@@ -85,23 +84,10 @@ export class Index {
     };
     return this.#nativeIndex.search(query, nativeOptions).map(mapHit);
   }
-
-  async readDocument(hit: DocumentHit): Promise<LoadedDocument> {
-    return mapLoaded(
-      this.#nativeIndex.readDocument(
-        hit.docId,
-        hit.originalPath,
-        hit.relativePath,
-        hit.title,
-        hit.score,
-        mapBestMatchBack(hit.bestMatch),
-      ),
-    );
-  }
 }
 
-export function openIndex(artifactPath: string, options?: OpenIndexOptions): Promise<Index> {
-  return Index.open(artifactPath, options);
+export function openIndex(artifactPath: string): Promise<Index> {
+  return Index.open(artifactPath);
 }
 
 function mapArtifactInfo(info: NativeArtifactInfo): ArtifactInfo {
@@ -118,9 +104,11 @@ function mapArtifactInfo(info: NativeArtifactInfo): ArtifactInfo {
 function mapHit(hit: NativeDocumentHit): DocumentHit {
   return {
     docId: hit.docId,
-    originalPath: hit.originalPath,
     relativePath: hit.relativePath,
+    canonicalUrl: hit.canonicalUrl,
     title: hit.title,
+    summary: hit.summary,
+    metadata: JSON.parse(hit.metadata) as Record<string, JsonValue>,
     score: hit.score,
     bestMatch: mapBestMatch(hit.bestMatch),
   };
@@ -134,24 +122,5 @@ function mapBestMatch(bestMatch: NativeBestMatch): BestMatch {
     charStart: bestMatch.charStart,
     charEnd: bestMatch.charEnd,
     score: bestMatch.score,
-  };
-}
-
-function mapBestMatchBack(bestMatch: BestMatch): NativeBestMatch {
-  return {
-    chunkId: bestMatch.chunkId,
-    excerpt: bestMatch.excerpt,
-    headingPath: bestMatch.headingPath,
-    charStart: bestMatch.charStart,
-    charEnd: bestMatch.charEnd,
-    score: bestMatch.score,
-  };
-}
-
-function mapLoaded(loaded: NativeLoadedDocument): LoadedDocument {
-  return {
-    originalPath: loaded.originalPath,
-    relativePath: loaded.relativePath,
-    content: loaded.content,
   };
 }

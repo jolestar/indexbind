@@ -1,4 +1,4 @@
-use indexbind_core::{DocumentHit, LoadedDocument, Retriever, SearchOptions};
+use indexbind_core::{DocumentHit, Retriever, SearchOptions};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use std::collections::HashMap;
@@ -33,9 +33,11 @@ pub struct NodeBestMatch {
 #[napi(object)]
 pub struct NodeDocumentHit {
     pub doc_id: String,
-    pub original_path: String,
     pub relative_path: String,
+    pub canonical_url: Option<String>,
     pub title: Option<String>,
+    pub summary: Option<String>,
+    pub metadata: String,
     pub score: f64,
     pub best_match: NodeBestMatch,
 }
@@ -50,13 +52,6 @@ pub struct NodeArtifactInfo {
     pub chunk_count: u32,
 }
 
-#[napi(object)]
-pub struct NodeLoadedDocument {
-    pub original_path: String,
-    pub relative_path: String,
-    pub content: String,
-}
-
 #[napi]
 pub struct NativeIndex {
     inner: Mutex<Retriever>,
@@ -65,10 +60,9 @@ pub struct NativeIndex {
 #[napi]
 impl NativeIndex {
     #[napi(factory)]
-    pub fn open(artifact_path: String, source_root_override: Option<String>) -> napi::Result<Self> {
-        let override_path = source_root_override.map(PathBuf::from);
+    pub fn open(artifact_path: String) -> napi::Result<Self> {
         let artifact_path = PathBuf::from(artifact_path);
-        let retriever = Retriever::open(&artifact_path, override_path).map_err(map_error)?;
+        let retriever = Retriever::open(&artifact_path).map_err(map_error)?;
         Ok(Self {
             inner: Mutex::new(retriever),
         })
@@ -135,55 +129,23 @@ impl NativeIndex {
                 .and_then(|value| value.metadata)
                 .unwrap_or_default()
                 .into_iter()
+                .map(|(key, value)| (key, serde_json::Value::String(value)))
                 .collect(),
             ..SearchOptions::default()
         };
         let hits = retriever.search(&query, options).map_err(map_error)?;
         Ok(hits.into_iter().map(map_hit).collect())
     }
-
-    #[napi]
-    pub fn read_document(
-        &self,
-        doc_id: String,
-        original_path: String,
-        relative_path: String,
-        title: Option<String>,
-        score: f64,
-        best_match: NodeBestMatch,
-    ) -> napi::Result<NodeLoadedDocument> {
-        let retriever = self
-            .inner
-            .lock()
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        let loaded = retriever
-            .read_document(&DocumentHit {
-                doc_id,
-                original_path,
-                relative_path,
-                title,
-                score: score as f32,
-                best_match: indexbind_core::BestMatch {
-                    chunk_id: best_match.chunk_id,
-                    excerpt: best_match.excerpt,
-                    heading_path: best_match.heading_path,
-                    char_start: best_match.char_start as usize,
-                    char_end: best_match.char_end as usize,
-                    score: best_match.score as f32,
-                },
-                metadata: Default::default(),
-            })
-            .map_err(map_error)?;
-        Ok(map_loaded(loaded))
-    }
 }
 
 fn map_hit(hit: DocumentHit) -> NodeDocumentHit {
     NodeDocumentHit {
         doc_id: hit.doc_id,
-        original_path: hit.original_path,
         relative_path: hit.relative_path,
+        canonical_url: hit.canonical_url,
         title: hit.title,
+        summary: hit.summary,
+        metadata: serde_json::to_string(&hit.metadata).unwrap_or_else(|_| "{}".to_string()),
         score: hit.score as f64,
         best_match: NodeBestMatch {
             chunk_id: hit.best_match.chunk_id,
@@ -193,14 +155,6 @@ fn map_hit(hit: DocumentHit) -> NodeDocumentHit {
             char_end: hit.best_match.char_end as u32,
             score: hit.best_match.score as f64,
         },
-    }
-}
-
-fn map_loaded(loaded: LoadedDocument) -> NodeLoadedDocument {
-    NodeLoadedDocument {
-        original_path: loaded.original_path,
-        relative_path: loaded.relative_path,
-        content: loaded.content,
     }
 }
 

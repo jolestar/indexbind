@@ -10,6 +10,5 @@ pub use embedding::EmbeddingBackend;
 pub use error::{IndexbindError, Result};
 pub use retriever::{ArtifactInfo, RerankerKind, RerankerOptions, Retriever, SearchOptions};
 pub use types::{
-    BestMatch, DocumentHit, LoadedDocument, NormalizedDocument, SourceRoot, StoredChunk,
-    StoredDocument,
+    BestMatch, DocumentHit, MetadataMap, NormalizedDocument, SourceRoot, StoredChunk, StoredDocument,
 };

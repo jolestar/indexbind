@@ -12,8 +12,6 @@ pub enum IndexbindError {
     Embedding(#[from] anyhow::Error),
     #[error("artifact metadata missing: {0}")]
     MissingMetadata(&'static str),
-    #[error("document not found at path: {0}")]
-    DocumentNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, IndexbindError>;

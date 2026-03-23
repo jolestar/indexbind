@@ -2,6 +2,8 @@
 
 `indexbind` is a local-first document retrieval library.
 
+The current implementation is native-first. The next-stage architecture direction is documented in [docs/architecture/canonical-artifact-and-wasm.md](./docs/architecture/canonical-artifact-and-wasm.md).
+
 ## Install
 
 Install the Node package:

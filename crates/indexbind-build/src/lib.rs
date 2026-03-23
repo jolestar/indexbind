@@ -39,9 +39,12 @@ fn read_documents(root: &Path) -> Result<Vec<NormalizedDocument>> {
                 .map(str::to_string)
         });
         documents.push(NormalizedDocument {
-            original_path: path.canonicalize()?.display().to_string(),
+            doc_id: None,
+            source_path: Some(path.canonicalize()?.display().to_string()),
             relative_path,
+            canonical_url: None,
             title,
+            summary: None,
             content,
             metadata: BTreeMap::new(),
         });

@@ -2,16 +2,14 @@ use crate::embedding::{
     bytes_to_vector, cosine_similarity, format_document_for_reranking, format_query_for_embedding,
     Embedder, EmbeddingBackend,
 };
-use crate::types::{
-    BestMatch, DocumentHit, LoadedDocument, SourceRoot, StoredChunk, StoredDocument,
-};
+use crate::types::{BestMatch, DocumentHit, MetadataMap, SourceRoot, StoredChunk, StoredDocument};
 use crate::{IndexbindError, Result};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArtifactInfo {
@@ -33,7 +31,7 @@ pub struct SearchOptions {
     #[serde(default)]
     pub relative_path_prefix: Option<String>,
     #[serde(default)]
-    pub metadata: BTreeMap<String, String>,
+    pub metadata: MetadataMap,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,12 +87,11 @@ pub struct Retriever {
     documents: HashMap<String, StoredDocument>,
     chunks: Vec<IndexedChunk>,
     chunks_by_id: HashMap<i64, StoredChunk>,
-    source_root_override: Option<PathBuf>,
     embedder: Embedder,
 }
 
 impl Retriever {
-    pub fn open(path: &Path, source_root_override: Option<PathBuf>) -> Result<Self> {
+    pub fn open(path: &Path) -> Result<Self> {
         let connection = Connection::open(path)?;
         let info = load_info(&connection)?;
         let documents = load_documents(&connection)?;
@@ -111,7 +108,6 @@ impl Retriever {
             documents,
             chunks,
             chunks_by_id,
-            source_root_override,
             embedder,
         })
     }
@@ -150,21 +146,6 @@ impl Retriever {
         let hits =
             self.rerank_documents(query, &fused_hits, options.reranker.as_ref(), options.top_k)?;
         Ok(hits)
-    }
-
-    pub fn read_document(&self, hit: &DocumentHit) -> Result<LoadedDocument> {
-        let path = if let Some(source_root) = &self.source_root_override {
-            source_root.join(&hit.relative_path)
-        } else {
-            PathBuf::from(&hit.original_path)
-        };
-        let content = fs::read_to_string(&path)
-            .map_err(|_| IndexbindError::DocumentNotFound(path.display().to_string()))?;
-        Ok(LoadedDocument {
-            original_path: hit.original_path.clone(),
-            relative_path: hit.relative_path.clone(),
-            content,
-        })
     }
 }
 
@@ -273,7 +254,14 @@ fn document_matches(document: &StoredDocument, options: &SearchOptions) -> bool 
     options
         .metadata
         .iter()
-        .all(|(key, value)| document.metadata.get(key) == Some(value))
+        .all(|(key, value)| document.metadata.get(key).is_some_and(|candidate| metadata_matches(candidate, value)))
+}
+
+fn metadata_matches(candidate: &Value, filter: &Value) -> bool {
+    candidate.is_boolean() == filter.is_boolean()
+        && candidate.is_number() == filter.is_number()
+        && candidate.is_string() == filter.is_string()
+        && candidate == filter
 }
 
 #[derive(Debug, Clone)]
@@ -381,9 +369,10 @@ fn fuse_documents(
                 });
             Some(DocumentHit {
                 doc_id: document.doc_id.clone(),
-                original_path: document.original_path.clone(),
                 relative_path: document.relative_path.clone(),
+                canonical_url: document.canonical_url.clone(),
                 title: document.title.clone(),
+                summary: document.summary.clone(),
                 score: fused_score.score,
                 best_match,
                 metadata: document.metadata.clone(),
@@ -589,20 +578,22 @@ fn load_info(connection: &Connection) -> Result<ArtifactInfo> {
 
 fn load_documents(connection: &Connection) -> Result<HashMap<String, StoredDocument>> {
     let mut statement = connection.prepare(
-        "SELECT doc_id, source_root_id, original_path, relative_path, title, content_hash, modified_at, chunk_count, metadata_json FROM documents",
+        "SELECT doc_id, source_root_id, source_path, relative_path, canonical_url, title, summary, content_hash, modified_at, chunk_count, metadata_json FROM documents",
     )?;
     let documents = statement
         .query_map([], |row| {
-            let metadata_json: String = row.get(8)?;
+            let metadata_json: String = row.get(10)?;
             Ok(StoredDocument {
                 doc_id: row.get(0)?,
                 source_root_id: row.get(1)?,
-                original_path: row.get(2)?,
+                source_path: row.get(2)?,
                 relative_path: row.get(3)?,
-                title: row.get(4)?,
-                content_hash: row.get(5)?,
-                modified_at: row.get(6)?,
-                chunk_count: row.get::<_, i64>(7)? as usize,
+                canonical_url: row.get(4)?,
+                title: row.get(5)?,
+                summary: row.get(6)?,
+                content_hash: row.get(7)?,
+                modified_at: row.get(8)?,
+                chunk_count: row.get::<_, i64>(9)? as usize,
                 metadata: serde_json::from_str(&metadata_json).unwrap_or_default(),
             })
         })?
@@ -680,11 +671,12 @@ mod tests {
     use crate::artifact::{build_artifact, BuildArtifactOptions};
     use crate::embedding::{Embedder, EmbeddingBackend};
     use crate::types::{NormalizedDocument, SourceRoot};
+    use serde_json::Value;
     use std::collections::BTreeMap;
     use tempfile::tempdir;
 
     #[test]
-    fn returns_document_hits_and_reads_source_content() {
+    fn returns_document_hits_with_runtime_neutral_fields() {
         let dir = tempdir().unwrap();
         let source = dir.path().join("docs");
         std::fs::create_dir_all(&source).unwrap();
@@ -695,9 +687,12 @@ mod tests {
         build_artifact(
             &artifact,
             &[NormalizedDocument {
-                original_path: file.display().to_string(),
+                doc_id: None,
+                source_path: Some(file.display().to_string()),
                 relative_path: "guide.md".to_string(),
+                canonical_url: Some("/docs/guide".to_string()),
                 title: Some("Intro".to_string()),
+                summary: Some("Rust embeddings and retrieval".to_string()),
                 content: "# Intro\nRust embeddings and retrieval.".to_string(),
                 metadata: BTreeMap::new(),
             }],
@@ -712,15 +707,15 @@ mod tests {
         )
         .unwrap();
 
-        let mut retriever = Retriever::open(&artifact, None).unwrap();
+        let mut retriever = Retriever::open(&artifact).unwrap();
         let hits = retriever
             .search("rust retrieval", SearchOptions::default())
             .unwrap();
 
         assert_eq!(hits.len(), 1);
-        assert!(hits[0].original_path.ends_with("guide.md"));
-        let loaded = retriever.read_document(&hits[0]).unwrap();
-        assert!(loaded.content.contains("Rust embeddings"));
+        assert_eq!(hits[0].relative_path, "guide.md");
+        assert_eq!(hits[0].canonical_url.as_deref(), Some("/docs/guide"));
+        assert_eq!(hits[0].summary.as_deref(), Some("Rust embeddings and retrieval"));
     }
 
     #[test]
@@ -737,24 +732,30 @@ mod tests {
 
         let artifact = dir.path().join("index.sqlite");
         let mut guide_metadata = BTreeMap::new();
-        guide_metadata.insert("lang".to_string(), "rust".to_string());
+        guide_metadata.insert("lang".to_string(), Value::String("rust".to_string()));
         let mut note_metadata = BTreeMap::new();
-        note_metadata.insert("lang".to_string(), "python".to_string());
+        note_metadata.insert("lang".to_string(), Value::String("python".to_string()));
 
         build_artifact(
             &artifact,
             &[
                 NormalizedDocument {
-                    original_path: guide.display().to_string(),
+                    doc_id: None,
+                    source_path: Some(guide.display().to_string()),
                     relative_path: "guides/rust.md".to_string(),
+                    canonical_url: Some("/guides/rust".to_string()),
                     title: Some("Rust Guide".to_string()),
+                    summary: None,
                     content: "# Rust Guide\nDocument retrieval in Rust.".to_string(),
                     metadata: guide_metadata.clone(),
                 },
                 NormalizedDocument {
-                    original_path: note.display().to_string(),
+                    doc_id: None,
+                    source_path: Some(note.display().to_string()),
                     relative_path: "notes/python.md".to_string(),
+                    canonical_url: Some("/notes/python".to_string()),
                     title: Some("Python Note".to_string()),
+                    summary: None,
                     content: "# Python Note\nDocument retrieval in Python.".to_string(),
                     metadata: note_metadata,
                 },
@@ -770,7 +771,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut retriever = Retriever::open(&artifact, None).unwrap();
+        let mut retriever = Retriever::open(&artifact).unwrap();
         let hits = retriever
             .search(
                 "document retrieval",
@@ -791,9 +792,10 @@ mod tests {
         let hits = vec![
             DocumentHit {
                 doc_id: "doc-1".to_string(),
-                original_path: "/tmp/guides/rust.md".to_string(),
                 relative_path: "guides/rust.md".to_string(),
+                canonical_url: Some("/guides/rust".to_string()),
                 title: Some("Rust Guide".to_string()),
+                summary: None,
                 score: 0.05,
                 best_match: BestMatch {
                     chunk_id: 1,
@@ -807,9 +809,10 @@ mod tests {
             },
             DocumentHit {
                 doc_id: "doc-2".to_string(),
-                original_path: "/tmp/notes/setup.md".to_string(),
                 relative_path: "notes/setup.md".to_string(),
+                canonical_url: Some("/notes/setup".to_string()),
                 title: Some("Setup Notes".to_string()),
+                summary: None,
                 score: 0.08,
                 best_match: BestMatch {
                     chunk_id: 2,
@@ -841,9 +844,10 @@ mod tests {
         let hits = vec![
             DocumentHit {
                 doc_id: "doc-1".to_string(),
-                original_path: "/tmp/guides/rust.md".to_string(),
                 relative_path: "guides/rust.md".to_string(),
+                canonical_url: Some("/guides/rust".to_string()),
                 title: Some("Rust Guide".to_string()),
+                summary: None,
                 score: 0.05,
                 best_match: BestMatch {
                     chunk_id: 1,
@@ -857,9 +861,10 @@ mod tests {
             },
             DocumentHit {
                 doc_id: "doc-2".to_string(),
-                original_path: "/tmp/notes/network.md".to_string(),
                 relative_path: "notes/network.md".to_string(),
+                canonical_url: Some("/notes/network".to_string()),
                 title: Some("Network Notes".to_string()),
+                summary: None,
                 score: 0.08,
                 best_match: BestMatch {
                     chunk_id: 2,

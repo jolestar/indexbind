@@ -60,7 +60,7 @@ fn inspect_command(args: Vec<String>) -> Result<()> {
     let artifact = args
         .next()
         .ok_or_else(|| anyhow!("usage: indexbind-build inspect <artifact-file>"))?;
-    let retriever = Retriever::open(&PathBuf::from(artifact), None)?;
+    let retriever = Retriever::open(&PathBuf::from(artifact))?;
     let info = retriever.info();
     let payload = json!({
         "schemaVersion": info.schema_version,
@@ -84,7 +84,7 @@ fn benchmark_command(args: Vec<String>) -> Result<()> {
         .ok_or_else(|| anyhow!("usage: indexbind-build benchmark <artifact-file> <queries-json>"))?;
     let payload = fs::read_to_string(&queries_path)?;
     let fixture: BenchmarkFixture = serde_json::from_str(&payload)?;
-    let mut retriever = Retriever::open(&PathBuf::from(artifact), None)?;
+    let mut retriever = Retriever::open(&PathBuf::from(artifact))?;
 
     let mut passed = 0usize;
     let mut results = Vec::new();
