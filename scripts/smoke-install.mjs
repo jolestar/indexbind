@@ -56,9 +56,9 @@ run(nodeCommand, [verifyScript], tempDir);
 function pack(packageDir, destination) {
   const result = spawnSync(
     npmCommand,
-    ['pack', packageDir, '--pack-destination', destination],
+    ['pack', '.', '--pack-destination', destination],
     {
-      cwd: tempDir,
+      cwd: packageDir,
       stdio: ['ignore', 'pipe', 'inherit'],
       env: process.env,
       encoding: 'utf8',
