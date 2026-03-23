@@ -105,7 +105,7 @@ export function openIndex(artifactPath: string, options?: OpenIndexOptions): Pro
 }
 
 function mapArtifactInfo(info: NativeArtifactInfo): ArtifactInfo {
-    return {
+  return {
     schemaVersion: info.schemaVersion,
     builtAt: info.builtAt,
     embeddingBackend: JSON.parse(info.embeddingBackend),

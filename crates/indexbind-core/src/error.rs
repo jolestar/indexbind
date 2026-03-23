@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum InkdexError {
+pub enum IndexbindError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("sqlite error: {0}")]
@@ -16,4 +16,4 @@ pub enum InkdexError {
     DocumentNotFound(String),
 }
 
-pub type Result<T> = std::result::Result<T, InkdexError>;
+pub type Result<T> = std::result::Result<T, IndexbindError>;

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use inkdex_core::{
+use indexbind_core::{
     build_artifact, BuildArtifactOptions, BuildStats, NormalizedDocument, SourceRoot,
 };
 use std::collections::BTreeMap;

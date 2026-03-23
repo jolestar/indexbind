@@ -1,4 +1,4 @@
-use crate::{error::Result, InkdexError};
+use crate::{error::Result, IndexbindError};
 use anyhow::anyhow;
 use model2vec_rs::model::StaticModel;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ impl Embedder {
         let model2vec = match &backend {
             EmbeddingBackend::Model2Vec { model, .. } => Some(
                 StaticModel::from_pretrained(model, None, None, None)
-                    .map_err(|error| InkdexError::Embedding(anyhow!(error.to_string())))?,
+                    .map_err(|error| IndexbindError::Embedding(anyhow!(error.to_string())))?,
             ),
             EmbeddingBackend::Hashing { .. } => None,
         };
@@ -53,7 +53,7 @@ impl Embedder {
                 .iter()
                 .map(|value| hashing_embedding(value, *dimensions))
                 .collect()),
-            _ => Err(InkdexError::Embedding(anyhow!(
+            _ => Err(IndexbindError::Embedding(anyhow!(
                 "embedding backend was not initialized"
             ))),
         }

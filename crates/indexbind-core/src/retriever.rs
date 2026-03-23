@@ -5,7 +5,7 @@ use crate::embedding::{
 use crate::types::{
     BestMatch, DocumentHit, LoadedDocument, SourceRoot, StoredChunk, StoredDocument,
 };
-use crate::{InkdexError, Result};
+use crate::{IndexbindError, Result};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -159,7 +159,7 @@ impl Retriever {
             PathBuf::from(&hit.original_path)
         };
         let content = fs::read_to_string(&path)
-            .map_err(|_| InkdexError::DocumentNotFound(path.display().to_string()))?;
+            .map_err(|_| IndexbindError::DocumentNotFound(path.display().to_string()))?;
         Ok(LoadedDocument {
             original_path: hit.original_path.clone(),
             relative_path: hit.relative_path.clone(),
@@ -558,19 +558,19 @@ fn load_info(connection: &Connection) -> Result<ArtifactInfo> {
 
     let schema_version = values
         .remove("schema_version")
-        .ok_or(InkdexError::MissingMetadata("schema_version"))?;
+        .ok_or(IndexbindError::MissingMetadata("schema_version"))?;
     let built_at = values
         .remove("built_at")
-        .ok_or(InkdexError::MissingMetadata("built_at"))?;
+        .ok_or(IndexbindError::MissingMetadata("built_at"))?;
     let embedding_backend = serde_json::from_str(
         values
             .get("embedding_backend")
-            .ok_or(InkdexError::MissingMetadata("embedding_backend"))?,
+            .ok_or(IndexbindError::MissingMetadata("embedding_backend"))?,
     )?;
     let source_root = serde_json::from_str(
         values
             .get("source_root")
-            .ok_or(InkdexError::MissingMetadata("source_root"))?,
+            .ok_or(IndexbindError::MissingMetadata("source_root"))?,
     )?;
 
     let document_count =

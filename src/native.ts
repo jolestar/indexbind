@@ -12,19 +12,19 @@ function platformKey(): string {
 }
 
 const SUPPORTED_PREBUILT_TARGETS = new Map<string, string>([
-  ['darwin-arm64', '@inkdex/native-darwin-arm64'],
-  ['darwin-x64', '@inkdex/native-darwin-x64'],
-  ['linux-x64', '@inkdex/native-linux-x64-gnu'],
-  ['linux-arm64', '@inkdex/native-linux-arm64-gnu'],
-  ['win32-x64', '@inkdex/native-win32-x64-msvc'],
+  ['darwin-arm64', '@indexbind/native-darwin-arm64'],
+  ['darwin-x64', '@indexbind/native-darwin-x64'],
+  ['linux-x64', '@indexbind/native-linux-x64-gnu'],
+  ['linux-arm64', '@indexbind/native-linux-arm64-gnu'],
+  ['win32-x64', '@indexbind/native-win32-x64-msvc'],
 ]);
 
 function resolveNativeModule(): NativeModule {
   const key = platformKey();
   const attempted: string[] = [];
   const candidates = [
-    path.join(root, 'native', `inkdex.${key}.node`),
-    path.join(root, 'native', 'inkdex.node'),
+    path.join(root, 'native', `indexbind.${key}.node`),
+    path.join(root, 'native', 'indexbind.node'),
   ];
 
   for (const candidate of candidates) {
@@ -54,7 +54,7 @@ function resolveNativeModule(): NativeModule {
 
 function nativeLoadError(key: string, attempted: string[], cause?: unknown): Error {
   const lines = [
-    `inkdex native addon could not be loaded for ${key}.`,
+    `indexbind native addon could not be loaded for ${key}.`,
     `Attempted: ${attempted.join(', ')}`,
     `Supported prebuilt targets: ${Array.from(SUPPORTED_PREBUILT_TARGETS.keys()).join(', ')}`,
     'For local development, run "npm run build:native".',

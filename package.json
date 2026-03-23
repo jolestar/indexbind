@@ -1,17 +1,25 @@
 {
-  "name": "inkdex",
+  "name": "indexbind",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "description": "Codename for a local-first document retrieval artifact library.",
+  "description": "A local-first document retrieval artifact library.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jolestar/indexbind.git"
+  },
+  "homepage": "https://github.com/jolestar/indexbind#readme",
+  "bugs": {
+    "url": "https://github.com/jolestar/indexbind/issues"
+  },
   "scripts": {
-    "build:native": "cargo build -p inkdex-node && node scripts/copy-native.mjs",
-    "build:native:release": "cargo build -p inkdex-node --release && node scripts/copy-native.mjs --release",
+    "build:native": "cargo build -p indexbind-node && node scripts/copy-native.mjs",
+    "build:native:release": "cargo build -p indexbind-node --release && node scripts/copy-native.mjs --release",
     "build": "npm run build:native && tsc -p tsconfig.json",
-    "inspect:artifact": "cargo run -p inkdex-build -- inspect",
-    "benchmark:basic": "tmpdir=$(mktemp -d) && cargo run -p inkdex-build -- build fixtures/benchmark/basic/docs \"$tmpdir/basic.sqlite\" hashing && cargo run -p inkdex-build -- benchmark \"$tmpdir/basic.sqlite\" fixtures/benchmark/basic/queries.json",
+    "inspect:artifact": "cargo run -p indexbind-build -- inspect",
+    "benchmark:basic": "tmpdir=$(mktemp -d) && cargo run -p indexbind-build -- build fixtures/benchmark/basic/docs \"$tmpdir/basic.sqlite\" hashing && cargo run -p indexbind-build -- benchmark \"$tmpdir/basic.sqlite\" fixtures/benchmark/basic/queries.json",
     "check": "tsc --noEmit -p tsconfig.json && cargo check --workspace",
     "test": "cargo test --workspace"
   },

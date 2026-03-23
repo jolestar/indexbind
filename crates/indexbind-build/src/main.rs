@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Result};
-use inkdex_build::build_from_directory;
-use inkdex_core::{BuildArtifactOptions, EmbeddingBackend, Retriever, SearchOptions};
+use indexbind_build::build_from_directory;
+use indexbind_core::{BuildArtifactOptions, EmbeddingBackend, Retriever, SearchOptions};
 use serde::Deserialize;
 use serde_json::json;
 use std::env;
@@ -59,7 +59,7 @@ fn inspect_command(args: Vec<String>) -> Result<()> {
     let mut args = args.into_iter();
     let artifact = args
         .next()
-        .ok_or_else(|| anyhow!("usage: inkdex-build inspect <artifact-file>"))?;
+        .ok_or_else(|| anyhow!("usage: indexbind-build inspect <artifact-file>"))?;
     let retriever = Retriever::open(&PathBuf::from(artifact), None)?;
     let info = retriever.info();
     let payload = json!({
@@ -78,10 +78,10 @@ fn benchmark_command(args: Vec<String>) -> Result<()> {
     let mut args = args.into_iter();
     let artifact = args
         .next()
-        .ok_or_else(|| anyhow!("usage: inkdex-build benchmark <artifact-file> <queries-json>"))?;
+        .ok_or_else(|| anyhow!("usage: indexbind-build benchmark <artifact-file> <queries-json>"))?;
     let queries_path = args
         .next()
-        .ok_or_else(|| anyhow!("usage: inkdex-build benchmark <artifact-file> <queries-json>"))?;
+        .ok_or_else(|| anyhow!("usage: indexbind-build benchmark <artifact-file> <queries-json>"))?;
     let payload = fs::read_to_string(&queries_path)?;
     let fixture: BenchmarkFixture = serde_json::from_str(&payload)?;
     let mut retriever = Retriever::open(&PathBuf::from(artifact), None)?;
@@ -136,5 +136,5 @@ struct BenchmarkQuery {
 }
 
 fn usage() -> &'static str {
-    "usage:\n  inkdex-build build <input-dir> <output-file> [hashing|<model-id>]\n  inkdex-build inspect <artifact-file>\n  inkdex-build benchmark <artifact-file> <queries-json>\n\nFor backward compatibility, `inkdex-build <input-dir> <output-file> [hashing|<model-id>]` still works."
+    "usage:\n  indexbind-build build <input-dir> <output-file> [hashing|<model-id>]\n  indexbind-build inspect <artifact-file>\n  indexbind-build benchmark <artifact-file> <queries-json>\n\nFor backward compatibility, `indexbind-build <input-dir> <output-file> [hashing|<model-id>]` still works."
 }

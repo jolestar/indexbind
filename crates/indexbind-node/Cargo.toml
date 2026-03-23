@@ -1,5 +1,5 @@
 [package]
-name = "inkdex-node"
+name = "indexbind-node"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ napi.workspace = true
 napi-derive.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-inkdex-core = { path = "../inkdex-core" }
+indexbind-core = { path = "../indexbind-core" }
 
 [build-dependencies]
 napi-build.workspace = true

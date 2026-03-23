@@ -1,4 +1,4 @@
-use inkdex_core::{DocumentHit, LoadedDocument, Retriever, SearchOptions};
+use indexbind_core::{DocumentHit, LoadedDocument, Retriever, SearchOptions};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use std::collections::HashMap;
@@ -114,10 +114,10 @@ impl NativeIndex {
                 .as_ref()
                 .and_then(|value| value.reranker.as_ref())
                 .map(|value| {
-                    Ok(inkdex_core::RerankerOptions {
+                    Ok(indexbind_core::RerankerOptions {
                         kind: match value.kind.as_deref() {
-                            Some("embedding-v1") | None => inkdex_core::RerankerKind::EmbeddingV1,
-                            Some("heuristic-v1") => inkdex_core::RerankerKind::HeuristicV1,
+                            Some("embedding-v1") | None => indexbind_core::RerankerKind::EmbeddingV1,
+                            Some("heuristic-v1") => indexbind_core::RerankerKind::HeuristicV1,
                             Some(other) => {
                                 return Err(Error::from_reason(format!(
                                     "unsupported reranker kind: {other}"
@@ -163,7 +163,7 @@ impl NativeIndex {
                 relative_path,
                 title,
                 score: score as f32,
-                best_match: inkdex_core::BestMatch {
+                best_match: indexbind_core::BestMatch {
                     chunk_id: best_match.chunk_id,
                     excerpt: best_match.excerpt,
                     heading_path: best_match.heading_path,

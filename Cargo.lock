@@ -857,6 +857,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexbind-build"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "indexbind-core",
+ "serde",
+ "serde_json",
+ "walkdir",
+]
+
+[[package]]
+name = "indexbind-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "model2vec-rs",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "indexbind-node"
+version = "0.1.0"
+dependencies = [
+ "indexbind-core",
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -879,43 +916,6 @@ dependencies = [
  "portable-atomic",
  "unicode-width",
  "web-time",
-]
-
-[[package]]
-name = "inkdex-build"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "inkdex-core",
- "serde",
- "serde_json",
- "walkdir",
-]
-
-[[package]]
-name = "inkdex-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "blake3",
- "model2vec-rs",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "inkdex-node"
-version = "0.1.0"
-dependencies = [
- "inkdex-core",
- "napi",
- "napi-build",
- "napi-derive",
- "serde",
- "serde_json",
 ]
 
 [[package]]

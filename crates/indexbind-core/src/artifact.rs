@@ -1,7 +1,7 @@
 use crate::chunking::{chunk_document, ChunkingOptions};
 use crate::embedding::{format_chunk_for_embedding, vector_to_bytes, Embedder, EmbeddingBackend};
 use crate::types::{NormalizedDocument, SourceRoot};
-use crate::{InkdexError, Result};
+use crate::{IndexbindError, Result};
 use blake3::Hasher;
 use rusqlite::{params, Connection};
 use serde_json::json;
@@ -47,7 +47,7 @@ pub fn build_artifact(
     let mut chunk_count = 0usize;
     let built_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|error| InkdexError::Embedding(error.into()))?
+        .map_err(|error| IndexbindError::Embedding(error.into()))?
         .as_secs()
         .to_string();
 

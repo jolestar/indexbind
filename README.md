@@ -1,6 +1,6 @@
-# inkdex
+# indexbind
 
-`inkdex` is a working codename for a local-first document retrieval library.
+`indexbind` is a local-first document retrieval library.
 
 The project goal is deliberately narrow:
 
@@ -19,7 +19,7 @@ The project goal is deliberately narrow:
 
 ## Non-Goals
 
-`inkdex` is not intended to be:
+`indexbind` is not intended to be:
 
 - a chat application
 - a hosted vector database
@@ -53,26 +53,26 @@ The likely shape of the project is:
 Build an artifact from a local docs directory:
 
 ```bash
-cargo run -p inkdex-build -- build ./docs ./index.sqlite
+cargo run -p indexbind-build -- build ./docs ./index.sqlite
 ```
 
 Inspect an existing artifact:
 
 ```bash
-cargo run -p inkdex-build -- inspect ./index.sqlite
+cargo run -p indexbind-build -- inspect ./index.sqlite
 ```
 
 Run the bundled benchmark fixture:
 
 ```bash
-cargo run -p inkdex-build -- build fixtures/benchmark/basic/docs /tmp/inkdex-basic.sqlite hashing
-cargo run -p inkdex-build -- benchmark /tmp/inkdex-basic.sqlite fixtures/benchmark/basic/queries.json
+cargo run -p indexbind-build -- build fixtures/benchmark/basic/docs /tmp/indexbind-basic.sqlite hashing
+cargo run -p indexbind-build -- benchmark /tmp/indexbind-basic.sqlite fixtures/benchmark/basic/queries.json
 ```
 
 From Node, open the artifact and run document-first search:
 
 ```ts
-import { openIndex } from 'inkdex';
+import { openIndex } from 'indexbind';
 
 const index = await openIndex('./index.sqlite');
 const hits = await index.search('rust guide', {
@@ -82,8 +82,8 @@ const hits = await index.search('rust guide', {
 
 Current native loading behavior:
 
-- local development prefers `native/inkdex.<platform>.node`
-- packaged installs can fall back to platform packages such as `@inkdex/native-darwin-x64`
+- local development prefers `native/indexbind.<platform>.node`
+- packaged installs can fall back to platform packages such as `@indexbind/native-darwin-x64`
 - unsupported or missing native targets now return an explicit platform-specific error
 
 ## Design Constraints
@@ -94,8 +94,6 @@ Current native loading behavior:
 - artifact-first
 - simple enough to embed in other systems
 
-## Naming
+## Name
 
-`inkdex` is a codename, not a final public name.
-
-The project should earn a permanent name after the artifact format, API, and scope are proven.
+`Indexbind` reflects the library's shape: build a fixed document set into a reusable retrieval artifact, then open that artifact locally to rank documents.

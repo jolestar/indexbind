@@ -1,8 +1,8 @@
 [workspace]
 members = [
-  "crates/inkdex-core",
-  "crates/inkdex-build",
-  "crates/inkdex-node",
+  "crates/indexbind-core",
+  "crates/indexbind-build",
+  "crates/indexbind-node",
 ]
 resolver = "2"
 

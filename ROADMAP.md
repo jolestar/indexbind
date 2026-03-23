@@ -1,6 +1,6 @@
-# Inkdex Roadmap
+# Indexbind Roadmap
 
-`inkdex` should stay narrower than tools like `qmd`.
+`indexbind` should stay narrower than tools like `qmd`.
 
 The core product is:
 
@@ -12,14 +12,14 @@ The roadmap below is organized to protect those constraints while still borrowin
 
 ## Design Position
 
-What `inkdex` should borrow from `qmd`:
+What `indexbind` should borrow from `qmd`:
 
 - local embedding models
 - hybrid retrieval
 - explicit query/document formatting before embedding
 - clean separation between embedding, retrieval, and optional reranking
 
-What `inkdex` should not copy from `qmd`:
+What `indexbind` should not copy from `qmd`:
 
 - a chunk-first result model
 - a multi-model runtime as the default path
@@ -150,7 +150,7 @@ Rules for this phase:
 
 - every feature must preserve document-first output
 - every feature must be optional
-- no feature should require turning `inkdex` into a chat app or workflow framework
+- no feature should require turning `indexbind` into a chat app or workflow framework
 
 ## Acceptance Criteria By Stage
 
