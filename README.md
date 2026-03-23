@@ -88,6 +88,24 @@ Build the canonical file-bundle artifact from a local docs directory:
 cargo run -p indexbind-build -- build-bundle ./docs ./index.bundle
 ```
 
+Build the canonical file-bundle artifact programmatically from Node:
+
+```ts
+import { buildCanonicalBundle } from 'indexbind/build';
+
+await buildCanonicalBundle('./index.bundle', [
+  {
+    relativePath: 'guides/rust.md',
+    canonicalUrl: '/guides/rust',
+    title: 'Rust Guide',
+    content: '# Intro\nRust retrieval guide.',
+    metadata: { lang: 'rust' },
+  },
+], {
+  embeddingBackend: 'hashing',
+});
+```
+
 Inspect an existing artifact:
 
 ```bash
@@ -111,6 +129,22 @@ const hits = await index.search('rust guide', {
   reranker: { candidatePoolSize: 25 },
 });
 ```
+
+From TypeScript in Node, a browser, or a Worker, open the canonical bundle and search it:
+
+```ts
+import { openWebIndex } from 'indexbind/web';
+
+const index = await openWebIndex('./index.bundle');
+const hits = await index.search('rust guide', {
+  reranker: { kind: 'heuristic-v1', candidatePoolSize: 25 },
+});
+```
+
+Current limitation:
+
+- `indexbind/web` currently supports canonical bundles built with the `hashing` backend.
+- `model2vec` bundle querying in web runtimes is not implemented yet.
 
 Current native loading behavior:
 

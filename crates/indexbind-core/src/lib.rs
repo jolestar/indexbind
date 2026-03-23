@@ -11,6 +11,7 @@ pub use canonical::{
     build_canonical_artifact, CanonicalArtifactManifest, CanonicalBuildStats, CanonicalChunkRecord,
     CanonicalDocumentRecord, CanonicalPosting, CanonicalPostings,
 };
+pub use chunking::ChunkingOptions;
 pub use embedding::EmbeddingBackend;
 pub use error::{IndexbindError, Result};
 pub use retriever::{ArtifactInfo, RerankerKind, RerankerOptions, Retriever, SearchOptions};

@@ -8,6 +8,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./build": {
+      "types": "./dist/build.d.ts",
+      "import": "./dist/build.js"
+    },
+    "./web": {
+      "types": "./dist/web.d.ts",
+      "import": "./dist/web.js"
     }
   },
   "description": "A local-first document retrieval artifact library.",
@@ -49,5 +57,8 @@
   "devDependencies": {
     "@types/node": "^24.5.2",
     "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "hash-wasm": "^4.12.0"
   }
 }

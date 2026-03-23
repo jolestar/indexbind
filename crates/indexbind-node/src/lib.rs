@@ -1,6 +1,10 @@
-use indexbind_core::{DocumentHit, Retriever, SearchOptions};
+use indexbind_core::{
+    build_canonical_artifact, BuildArtifactOptions, CanonicalBuildStats, ChunkingOptions, DocumentHit,
+    EmbeddingBackend, NormalizedDocument, Retriever, SearchOptions, SourceRoot,
+};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -50,6 +54,37 @@ pub struct NodeArtifactInfo {
     pub source_root: String,
     pub document_count: u32,
     pub chunk_count: u32,
+}
+
+#[napi(object)]
+pub struct NodeBuildDocument {
+    pub doc_id: Option<String>,
+    pub source_path: Option<String>,
+    pub relative_path: String,
+    pub canonical_url: Option<String>,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub content: String,
+    pub metadata_json: Option<String>,
+}
+
+#[napi(object)]
+pub struct NodeBuildOptions {
+    pub embedding_backend: Option<String>,
+    pub hashing_dimensions: Option<u32>,
+    pub model: Option<String>,
+    pub batch_size: Option<u32>,
+    pub source_root_id: Option<String>,
+    pub source_root_path: Option<String>,
+    pub target_tokens: Option<u32>,
+    pub overlap_tokens: Option<u32>,
+}
+
+#[napi(object)]
+pub struct NodeCanonicalBuildStats {
+    pub document_count: u32,
+    pub chunk_count: u32,
+    pub vector_dimensions: u32,
 }
 
 #[napi]
@@ -138,6 +173,26 @@ impl NativeIndex {
     }
 }
 
+#[napi]
+pub fn build_canonical_bundle(
+    output_dir: String,
+    documents: Vec<NodeBuildDocument>,
+    options: Option<NodeBuildOptions>,
+) -> napi::Result<NodeCanonicalBuildStats> {
+    let build_options = map_build_options(options);
+    let normalized_documents = documents
+        .into_iter()
+        .map(map_build_document)
+        .collect::<napi::Result<Vec<_>>>()?;
+    let stats = build_canonical_artifact(
+        &PathBuf::from(output_dir),
+        &normalized_documents,
+        &build_options,
+    )
+    .map_err(map_error)?;
+    Ok(map_build_stats(stats))
+}
+
 fn map_hit(hit: DocumentHit) -> NodeDocumentHit {
     NodeDocumentHit {
         doc_id: hit.doc_id,
@@ -155,6 +210,76 @@ fn map_hit(hit: DocumentHit) -> NodeDocumentHit {
             char_end: hit.best_match.char_end as u32,
             score: hit.best_match.score as f64,
         },
+    }
+}
+
+fn map_build_document(document: NodeBuildDocument) -> napi::Result<NormalizedDocument> {
+    let metadata = document
+        .metadata_json
+        .as_deref()
+        .map(serde_json::from_str::<HashMap<String, Value>>)
+        .transpose()
+        .map_err(map_serde_error)?
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    Ok(NormalizedDocument {
+        doc_id: document.doc_id,
+        source_path: document.source_path,
+        relative_path: document.relative_path,
+        canonical_url: document.canonical_url,
+        title: document.title,
+        summary: document.summary,
+        content: document.content,
+        metadata,
+    })
+}
+
+fn map_build_options(options: Option<NodeBuildOptions>) -> BuildArtifactOptions {
+    let options = options.unwrap_or(NodeBuildOptions {
+        embedding_backend: None,
+        hashing_dimensions: None,
+        model: None,
+        batch_size: None,
+        source_root_id: None,
+        source_root_path: None,
+        target_tokens: None,
+        overlap_tokens: None,
+    });
+    let embedding_backend = match options.embedding_backend.as_deref() {
+        Some("hashing") => EmbeddingBackend::Hashing {
+            dimensions: options.hashing_dimensions.unwrap_or(256) as usize,
+        },
+        Some("model2vec") | None => EmbeddingBackend::Model2Vec {
+            model: options
+                .model
+                .unwrap_or_else(|| "minishlab/potion-base-2M".to_string()),
+            batch_size: options.batch_size.unwrap_or(256) as usize,
+        },
+        Some(other) => EmbeddingBackend::Model2Vec {
+            model: other.to_string(),
+            batch_size: options.batch_size.unwrap_or(256) as usize,
+        },
+    };
+
+    BuildArtifactOptions {
+        source_root: SourceRoot {
+            id: options.source_root_id.unwrap_or_else(|| "root".to_string()),
+            original_path: options.source_root_path.unwrap_or_else(|| ".".to_string()),
+        },
+        embedding_backend,
+        chunking: ChunkingOptions {
+            target_tokens: options.target_tokens.unwrap_or(512) as usize,
+            overlap_tokens: options.overlap_tokens.unwrap_or(64) as usize,
+        },
+    }
+}
+
+fn map_build_stats(stats: CanonicalBuildStats) -> NodeCanonicalBuildStats {
+    NodeCanonicalBuildStats {
+        document_count: stats.document_count as u32,
+        chunk_count: stats.chunk_count as u32,
+        vector_dimensions: stats.vector_dimensions as u32,
     }
 }
 

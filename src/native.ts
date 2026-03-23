@@ -97,6 +97,34 @@ export interface NativeArtifactInfo {
   chunkCount: number;
 }
 
+export interface NativeBuildDocument {
+  docId?: string;
+  sourcePath?: string;
+  relativePath: string;
+  canonicalUrl?: string;
+  title?: string;
+  summary?: string;
+  content: string;
+  metadataJson?: string;
+}
+
+export interface NativeBuildOptions {
+  embeddingBackend?: string;
+  hashingDimensions?: number;
+  model?: string;
+  batchSize?: number;
+  sourceRootId?: string;
+  sourceRootPath?: string;
+  targetTokens?: number;
+  overlapTokens?: number;
+}
+
+export interface NativeCanonicalBuildStats {
+  documentCount: number;
+  chunkCount: number;
+  vectorDimensions: number;
+}
+
 export interface NativeSearchOptions {
   topK?: number;
   hybrid?: boolean;
@@ -119,6 +147,11 @@ export interface NativeModule {
   NativeIndex: {
     open(artifactPath: string): NativeIndex;
   };
+  buildCanonicalBundle(
+    outputDir: string,
+    documents: NativeBuildDocument[],
+    options?: NativeBuildOptions,
+  ): NativeCanonicalBuildStats;
 }
 
 export function loadNativeModule(): NativeModule {
