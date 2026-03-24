@@ -87,8 +87,8 @@ jobs:
       - name: Build native addon
         run: npm run build:native:release
 
-      - name: Build TypeScript package
-        run: npx tsc -p tsconfig.json
+      - name: Build package
+        run: npm run build
 
       - name: Prepare native package
         run: npm run release:prepare-native -- ${{ matrix.target_key }}
@@ -146,8 +146,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build TypeScript package
-        run: npx tsc -p tsconfig.json
+      - name: Build package
+        run: npm run build
 
       - name: Prepare root package
         run: npm run release:prepare-root
