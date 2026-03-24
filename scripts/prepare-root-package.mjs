@@ -54,6 +54,7 @@ const publishPackageJson = {
   license: packageJson.license,
   engines: packageJson.engines,
   publishConfig: packageJson.publishConfig,
+  dependencies: packageJson.dependencies,
   optionalDependencies: Object.fromEntries(
     Object.keys(OPTIONAL_DEPENDENCIES).map((name) => [name, version]),
   ),

@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Resolve release version
         id: version
@@ -35,7 +35,7 @@ jobs:
           fi
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -67,10 +67,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -119,7 +119,7 @@ jobs:
           EXPECTED_TOP_HIT: guides/rust.md
 
       - name: Upload native package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: native-dir-${{ matrix.target_key }}
           path: release/npm/indexbind__native-${{ matrix.target_key }}
@@ -130,7 +130,7 @@ jobs:
           npm pack release/npm/indexbind__native-${{ matrix.target_key }} --pack-destination release/tarballs
 
       - name: Upload native tarball
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: native-tarball-${{ matrix.target_key }}
           path: release/tarballs/*.tgz
@@ -141,10 +141,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -170,7 +170,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.verify.outputs.release_version }}
 
       - name: Upload root package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: npm-root-dir
           path: release/npm/indexbind
@@ -181,7 +181,7 @@ jobs:
           npm pack release/npm/indexbind --pack-destination release/tarballs
 
       - name: Upload root tarball
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: npm-root-tarball
           path: release/tarballs/*.tgz
@@ -195,13 +195,13 @@ jobs:
 
     steps:
       - name: Download root tarball artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: npm-root-tarball
           path: release/assets
 
       - name: Download native tarball artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: native-tarball-*
           path: release/assets
@@ -238,7 +238,7 @@ jobs:
             release/assets/SHA256SUMS.txt
 
       - name: Setup Node for npm publish
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
