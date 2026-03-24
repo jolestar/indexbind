@@ -668,7 +668,8 @@ mod tests {
         rerank_documents_with_embeddings, rerank_documents_with_heuristic, BestMatch, DocumentHit,
         RerankerKind, RerankerOptions, Retriever, SearchOptions,
     };
-    use crate::artifact::{build_artifact, BuildArtifactOptions};
+    use crate::artifact::build_artifact;
+    use crate::build::BuildArtifactOptions;
     use crate::embedding::{Embedder, EmbeddingBackend};
     use crate::types::{NormalizedDocument, SourceRoot};
     use serde_json::Value;

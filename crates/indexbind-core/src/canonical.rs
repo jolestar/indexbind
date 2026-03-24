@@ -1,8 +1,8 @@
+use crate::build::{build_chunk_id, build_doc_id, BuildArtifactOptions};
 use crate::chunking::chunk_document;
 use crate::embedding::{format_chunk_for_embedding, vector_to_bytes, Embedder, EmbeddingBackend};
 use crate::types::{MetadataMap, NormalizedDocument};
 use crate::{IndexbindError, Result};
-use blake3::Hasher;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -94,7 +94,7 @@ pub struct CanonicalBuildStats {
 pub fn build_canonical_artifact(
     output_dir: &Path,
     documents: &[NormalizedDocument],
-    options: &crate::artifact::BuildArtifactOptions,
+    options: &BuildArtifactOptions,
 ) -> Result<CanonicalBuildStats> {
     fs::create_dir_all(output_dir)?;
 
@@ -263,29 +263,10 @@ fn tokenize(input: &str) -> Vec<String> {
         .map(|segment| segment.to_lowercase())
         .collect()
 }
-
-fn build_doc_id(source_root_id: &str, relative_path: &str) -> String {
-    let mut hasher = Hasher::new();
-    hasher.update(source_root_id.as_bytes());
-    hasher.update(b":");
-    hasher.update(relative_path.as_bytes());
-    hasher.finalize().to_hex().to_string()
-}
-
-fn build_chunk_id(doc_id: &str, ordinal: usize) -> i64 {
-    let mut hasher = Hasher::new();
-    hasher.update(doc_id.as_bytes());
-    hasher.update(b":");
-    hasher.update(ordinal.to_string().as_bytes());
-    let mut bytes = [0_u8; 8];
-    bytes.copy_from_slice(&hasher.finalize().as_bytes()[..8]);
-    i64::from_be_bytes(bytes) & i64::MAX
-}
-
 #[cfg(test)]
 mod tests {
     use super::{build_canonical_artifact, CanonicalArtifactManifest, CanonicalChunkRecord, CanonicalDocumentRecord, CanonicalPostings};
-    use crate::artifact::BuildArtifactOptions;
+    use crate::build::BuildArtifactOptions;
     use crate::embedding::EmbeddingBackend;
     use crate::types::{NormalizedDocument, SourceRoot};
     use serde_json::Value;

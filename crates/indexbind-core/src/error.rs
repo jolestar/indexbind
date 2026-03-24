@@ -4,6 +4,7 @@ use thiserror::Error;
 pub enum IndexbindError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
     #[error("json error: {0}")]

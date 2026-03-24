@@ -1,38 +1,12 @@
-use crate::chunking::{chunk_document, ChunkingOptions};
-use crate::embedding::{format_chunk_for_embedding, vector_to_bytes, Embedder, EmbeddingBackend};
-use crate::types::{NormalizedDocument, SourceRoot};
+use crate::build::{build_chunk_id, build_doc_id, BuildArtifactOptions, BuildStats};
+use crate::chunking::chunk_document;
+use crate::embedding::{format_chunk_for_embedding, vector_to_bytes, Embedder};
+use crate::types::NormalizedDocument;
 use crate::{IndexbindError, Result};
-use blake3::Hasher;
 use rusqlite::{params, Connection};
 use serde_json::json;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-#[derive(Debug, Clone)]
-pub struct BuildArtifactOptions {
-    pub source_root: SourceRoot,
-    pub embedding_backend: EmbeddingBackend,
-    pub chunking: ChunkingOptions,
-}
-
-impl Default for BuildArtifactOptions {
-    fn default() -> Self {
-        Self {
-            source_root: SourceRoot {
-                id: "root".to_string(),
-                original_path: ".".to_string(),
-            },
-            embedding_backend: EmbeddingBackend::default(),
-            chunking: ChunkingOptions::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BuildStats {
-    pub document_count: usize,
-    pub chunk_count: usize,
-}
 
 pub fn build_artifact(
     output_path: &Path,
@@ -215,22 +189,4 @@ fn initialize_schema(connection: &Connection) -> Result<()> {
         ",
     )?;
     Ok(())
-}
-
-fn build_doc_id(source_root_id: &str, relative_path: &str) -> String {
-    let mut hasher = Hasher::new();
-    hasher.update(source_root_id.as_bytes());
-    hasher.update(b":");
-    hasher.update(relative_path.as_bytes());
-    hasher.finalize().to_hex().to_string()
-}
-
-fn build_chunk_id(doc_id: &str, ordinal: usize) -> i64 {
-    let mut hasher = Hasher::new();
-    hasher.update(doc_id.as_bytes());
-    hasher.update(b":");
-    hasher.update(ordinal.to_string().as_bytes());
-    let mut bytes = [0_u8; 8];
-    bytes.copy_from_slice(&hasher.finalize().as_bytes()[..8]);
-    i64::from_be_bytes(bytes) & i64::MAX
 }
