@@ -30,6 +30,14 @@ const packageJson = {
   name: target.packageName,
   version,
   description: `Prebuilt native addon for indexbind on ${target.key}.`,
+  repository: {
+    type: 'git',
+    url: 'https://github.com/jolestar/indexbind.git',
+  },
+  homepage: 'https://github.com/jolestar/indexbind#readme',
+  bugs: {
+    url: 'https://github.com/jolestar/indexbind/issues',
+  },
   os: [target.os],
   cpu: [target.arch],
   files: [target.artifactName, 'README.md', 'LICENSE'],
