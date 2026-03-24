@@ -1,4 +1,4 @@
-import { blake3 } from 'hash-wasm';
+import { blake3 } from '@noble/hashes/blake3.js';
 
 export type JsonValue =
   | null
@@ -144,25 +144,16 @@ export class WebIndex {
   readonly #manifest: CanonicalArtifactManifest;
   readonly #documents: CanonicalDocumentRecord[];
   readonly #documentsById: Map<string, CanonicalDocumentRecord>;
-  readonly #chunks: CanonicalChunkRecord[];
-  readonly #vectors: Float32Array[];
-  readonly #postings: CanonicalPostings;
-  readonly #wasmIndex?: WasmSearchBackend;
+  readonly #wasmIndex: WasmSearchBackend;
 
   private constructor(
     manifest: CanonicalArtifactManifest,
     documents: CanonicalDocumentRecord[],
-    chunks: CanonicalChunkRecord[],
-    vectors: Float32Array[],
-    postings: CanonicalPostings,
-    wasmIndex?: WasmSearchBackend,
+    wasmIndex: WasmSearchBackend,
   ) {
     this.#manifest = manifest;
     this.#documents = documents;
     this.#documentsById = new Map(documents.map((document) => [document.docId, document]));
-    this.#chunks = chunks;
-    this.#vectors = vectors;
-    this.#postings = postings;
     this.#wasmIndex = wasmIndex;
   }
 
@@ -179,8 +170,7 @@ export class WebIndex {
           loadArrayBuffer(base, manifest.files.model.config),
         ])
       : undefined;
-    const vectors = decodeVectors(vectorsBuffer, chunks.length, manifest.vectorDimensions);
-    const wasmIndex = await maybeCreateWasmIndex(
+    const wasmIndex = await createWasmIndex(
       manifest,
       documents,
       chunks,
@@ -188,7 +178,7 @@ export class WebIndex {
       postings,
       modelBuffers,
     );
-    return new WebIndex(manifest, documents, chunks, vectors, postings, wasmIndex);
+    return new WebIndex(manifest, documents, wasmIndex);
   }
 
   info(): WebArtifactInfo {
@@ -206,146 +196,7 @@ export class WebIndex {
   }
 
   async search(query: string, options: SearchOptions = {}): Promise<DocumentHit[]> {
-    if (this.#wasmIndex) {
-      return this.#wasmIndex.search(query, options) as Promise<DocumentHit[]>;
-    }
-
-    const topK = options.topK ?? 10;
-    const candidateMultiplier = 8;
-    const allowedDocIds = this.allowedDocIds(options);
-    if (allowedDocIds.size === 0) {
-      return [];
-    }
-
-    const rerankCandidateLimit = Math.max(options.reranker?.candidatePoolSize ?? topK, topK);
-    const limit = Math.max(topK * candidateMultiplier, rerankCandidateLimit, topK);
-    const queryEmbedding = await this.embedQuery(query);
-    const vectorDocs = this.rankDocumentsByVector(queryEmbedding, limit, allowedDocIds);
-    const lexicalDocs = options.hybrid === false
-      ? []
-      : this.rankDocumentsByLexical(query, limit, allowedDocIds);
-    const fused = fuseDocuments(this.#documentsById, vectorDocs, lexicalDocs, topK);
-    return this.rerankDocuments(query, fused, options.reranker, topK);
-  }
-
-  private allowedDocIds(options: SearchOptions): Set<string> {
-    return new Set(
-      this.#documents
-        .filter((document) => documentMatches(document, options))
-        .map((document) => document.docId),
-    );
-  }
-
-  private rankDocumentsByVector(
-    queryEmbedding: Float32Array,
-    limit: number,
-    allowedDocIds: Set<string>,
-  ): RankedDocument[] {
-    const chunkScores = this.#chunks
-      .map((chunk, index) => ({
-        chunk,
-        score: cosineSimilarity(queryEmbedding, this.#vectors[index]),
-      }))
-      .filter((entry) => allowedDocIds.has(entry.chunk.docId) && entry.score > 0)
-      .sort((left, right) => right.score - left.score);
-
-    return aggregateRankedDocuments(
-      chunkScores.slice(0, limit * 2).map((entry) => ({
-        docId: entry.chunk.docId,
-        score: entry.score,
-        chunk: entry.chunk,
-      })),
-      limit,
-    );
-  }
-
-  private rankDocumentsByLexical(
-    query: string,
-    limit: number,
-    allowedDocIds: Set<string>,
-  ): RankedDocument[] {
-    const tokens = [...new Set(tokenize(query))];
-    if (tokens.length === 0) {
-      return [];
-    }
-
-    const scoredChunks = new Map<number, number>();
-    const chunkCount = this.#chunks.length;
-    const avgChunkLength = this.#postings.avgChunkLength || 1;
-    const k1 = 1.2;
-    const b = 0.75;
-
-    for (const token of tokens) {
-      const postings = this.#postings.postings[token];
-      if (!postings || postings.length === 0) {
-        continue;
-      }
-
-      const documentFrequency = this.#postings.documentFrequency[token] ?? postings.length;
-      const idf = Math.log(1 + (chunkCount - documentFrequency + 0.5) / (documentFrequency + 0.5));
-
-      for (const posting of postings) {
-        const chunk = this.#chunks[posting.chunkIndex];
-        if (!allowedDocIds.has(chunk.docId)) {
-          continue;
-        }
-        const chunkLength = chunk.tokenCount || 1;
-        const numerator = posting.termFrequency * (k1 + 1);
-        const denominator =
-          posting.termFrequency + k1 * (1 - b + b * (chunkLength / avgChunkLength));
-        const score = idf * (numerator / denominator);
-        scoredChunks.set(posting.chunkIndex, (scoredChunks.get(posting.chunkIndex) ?? 0) + score);
-      }
-    }
-
-    const chunkScores = [...scoredChunks.entries()]
-      .map(([chunkIndex, score]) => ({
-        docId: this.#chunks[chunkIndex].docId,
-        score,
-        chunk: this.#chunks[chunkIndex],
-      }))
-      .sort((left, right) => right.score - left.score)
-      .slice(0, limit * 2);
-
-    return aggregateRankedDocuments(chunkScores, limit);
-  }
-
-  private async rerankDocuments(
-    query: string,
-    hits: DocumentHit[],
-    reranker: RerankerOptions | undefined,
-    topK: number,
-  ): Promise<DocumentHit[]> {
-    if (!reranker) {
-      return hits.slice(0, topK);
-    }
-
-    if (reranker.kind === 'heuristic-v1') {
-      return rerankDocumentsWithHeuristic(query, hits, reranker, topK);
-    }
-
-    return rerankDocumentsWithEmbeddings(
-      query,
-      hits,
-      reranker,
-      topK,
-      (input) => this.embedText(input),
-    );
-  }
-
-  private async embedQuery(query: string): Promise<Float32Array> {
-    return this.embedText(formatQueryForEmbedding(query));
-  }
-
-  private async embedText(input: string): Promise<Float32Array> {
-    const backend = this.#manifest.embeddingBackend as Record<string, unknown>;
-    if ('Hashing' in backend || 'dimensions' in backend) {
-      const dimensions = extractHashingDimensions(this.#manifest.embeddingBackend);
-      return hashingEmbedding(input, dimensions);
-    }
-    throw new Error(
-      'web runtime does not support model2vec bundles yet; build a hashing bundle for now.',
-    );
+    return this.#wasmIndex.search(query, options) as Promise<DocumentHit[]>;
   }
 }
 
@@ -353,19 +204,24 @@ export async function openWebIndex(base: string | URL): Promise<WebIndex> {
   return WebIndex.open(base);
 }
 
-async function maybeCreateWasmIndex(
+async function createWasmIndex(
   manifest: CanonicalArtifactManifest,
   documents: CanonicalDocumentRecord[],
   chunks: CanonicalChunkRecord[],
   vectorsBuffer: ArrayBuffer,
   postings: CanonicalPostings,
   modelBuffers?: [ArrayBuffer, ArrayBuffer, ArrayBuffer],
-): Promise<WasmSearchBackend | undefined> {
-  try {
-    if (!supportsWasmBackend(manifest.embeddingBackend)) {
-      return undefined;
-    }
+): Promise<WasmSearchBackend> {
+  if (!supportsWasmBackend(manifest.embeddingBackend)) {
+    throw new Error('unsupported embedding backend for web runtime');
+  }
+  if (isCloudflareWorkerRuntime()) {
+    throw new Error(
+      'Cloudflare Workers are not supported yet: the current wasm runtime needs a static Worker wasm module import.',
+    );
+  }
 
+  try {
     const wasmModuleUrl = new URL('./wasm/indexbind_wasm.js', import.meta.url).href;
     const wasmModule = (await import(wasmModuleUrl)) as {
       default: (input?: unknown) => Promise<void>;
@@ -392,8 +248,12 @@ async function maybeCreateWasmIndex(
       modelBuffers ? new Uint8Array(modelBuffers[1]) : undefined,
       modelBuffers ? new Uint8Array(modelBuffers[2]) : undefined,
     );
-  } catch {
-    return undefined;
+  } catch (error) {
+    throw new Error(
+      `failed to initialize wasm web runtime: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   }
 }
 
@@ -808,6 +668,10 @@ function isNodeRuntime(): boolean {
   return typeof process !== 'undefined' && Boolean(process.versions?.node);
 }
 
+function isCloudflareWorkerRuntime(): boolean {
+  return !isNodeRuntime() && 'WebSocketPair' in globalThis;
+}
+
 function extractHashingDimensions(backend: unknown): number {
   if (!backend || typeof backend !== 'object') {
     throw new Error('unsupported embedding backend shape');
@@ -839,14 +703,5 @@ function joinFilePath(base: string, fileName: string): string {
 }
 
 async function blake3HashBytes(input: string): Promise<Uint8Array> {
-  const hex = await blake3(input);
-  return hexToBytes(hex);
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let index = 0; index < bytes.length; index += 1) {
-    bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
-  }
-  return bytes;
+  return blake3(new TextEncoder().encode(input));
 }

@@ -51,6 +51,7 @@
     "smoke:web-bundle": "node scripts/smoke-web-bundle.mjs",
     "smoke:web-worker": "node scripts/smoke-web-worker.mjs",
     "smoke:web-browser": "node scripts/smoke-web-browser.mjs",
+    "smoke:cloudflare-worker": "node scripts/smoke-cloudflare-worker.mjs",
     "check": "tsc --noEmit -p tsconfig.json && cargo check --workspace",
     "test": "cargo test --workspace",
     "release:verify": "node scripts/verify-release.mjs",
@@ -62,9 +63,10 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^24.5.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "wrangler": "^4.76.0"
   },
   "dependencies": {
-    "hash-wasm": "^4.12.0"
+    "@noble/hashes": "^2.0.1"
   }
 }

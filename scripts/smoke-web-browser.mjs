@@ -146,7 +146,7 @@ function renderSmokePage(caseName) {
     <script type="importmap">
       {
         "imports": {
-          "hash-wasm": "/node_modules/hash-wasm/dist/index.esm.js"
+          "@noble/hashes/blake3.js": "/node_modules/@noble/hashes/blake3.js"
         }
       }
     </script>
