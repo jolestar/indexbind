@@ -1,0 +1,22 @@
+{
+  "siteTitle": "indexbind",
+  "siteDescription": "Embedded retrieval artifacts for Node, browsers, and Workers.",
+  "siteUrl": "https://indexbind.dev",
+  "favicon": "/favicon.svg",
+  "logo": {
+    "src": "/favicon.svg",
+    "alt": "indexbind"
+  },
+  "showDate": true,
+  "showSummary": true,
+  "theme": "atlas",
+  "template": "document",
+  "socialLinks": [
+    { "icon": "github", "label": "GitHub", "href": "https://github.com/jolestar/indexbind" },
+    { "icon": "npm", "label": "npm", "href": "https://www.npmjs.com/package/indexbind" }
+  ],
+  "editLink": {
+    "baseUrl": "https://github.com/jolestar/indexbind/edit/main/docs/site/"
+  },
+  "showHomeIndex": false
+}

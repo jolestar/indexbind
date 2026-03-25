@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title>indexbind</title>
+  <rect width="128" height="128" rx="24" fill="#101726"/>
+  <path d="M27 33h18v62H27zM55 33h18v62H55zM83 33h18v62H83z" fill="#9fe870"/>
+  <path d="M27 83h74v12H27z" fill="#f6f4ef"/>
+</svg>

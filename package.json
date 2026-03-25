@@ -51,6 +51,8 @@
     "build:wasm": "node scripts/build-wasm.mjs",
     "build": "npm run build:native && tsc -p tsconfig.json && npm run build:wasm",
     "build:bundle": "cargo run -p indexbind-build -- build-bundle",
+    "docs:dev": "npx --yes mdorigin dev --root docs/site",
+    "docs:index": "npx --yes mdorigin build index --root docs/site",
     "inspect:artifact": "cargo run -p indexbind-build -- inspect",
     "benchmark:basic": "tmpdir=$(mktemp -d) && cargo run -p indexbind-build -- build fixtures/benchmark/basic/docs \"$tmpdir/basic.sqlite\" hashing && cargo run -p indexbind-build -- benchmark \"$tmpdir/basic.sqlite\" fixtures/benchmark/basic/queries.json",
     "smoke:web-bundle": "node scripts/smoke-web-bundle.mjs",
