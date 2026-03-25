@@ -1,5 +1,9 @@
 # indexbind
 
+[![npm version](https://img.shields.io/npm/v/indexbind)](https://www.npmjs.com/package/indexbind)
+[![docs](https://img.shields.io/badge/docs-live-0f5bd7)](https://indexbind.jolestar.workers.dev)
+[![license](https://img.shields.io/npm/l/indexbind)](./LICENSE)
+
 `indexbind` builds retrieval artifacts offline, then opens them across Node, browsers, and Workers.
 
 Docs: [indexbind.jolestar.workers.dev](https://indexbind.jolestar.workers.dev)

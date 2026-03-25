@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+- Added and published a public documentation site at `https://indexbind.jolestar.workers.dev`.
+- Reorganized docs into `Guides`, `Concepts`, and `Reference`, and added a packaging reference page.
+- Refreshed public project metadata across npm, Cargo, GitHub, and the repository README.
+
 ## 0.2.1
 
 - Fixed published root npm package metadata to preserve runtime `dependencies`, including `@noble/hashes` for `indexbind/web` and `indexbind/cloudflare`.
