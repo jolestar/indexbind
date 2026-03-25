@@ -3,6 +3,10 @@ name = "indexbind-build"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "CLI and build helpers for generating indexbind artifacts."
 
 [dependencies]
 anyhow.workspace = true

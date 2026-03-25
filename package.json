@@ -22,16 +22,24 @@
       "import": "./dist/cloudflare.js"
     }
   },
-  "description": "A local-first document retrieval artifact library.",
+  "description": "Embedded retrieval artifacts for Node, browsers, and Workers.",
   "repository": {
     "type": "git",
     "url": "https://github.com/jolestar/indexbind.git"
   },
-  "homepage": "https://github.com/jolestar/indexbind#readme",
+  "homepage": "https://indexbind.jolestar.workers.dev",
   "bugs": {
     "url": "https://github.com/jolestar/indexbind/issues"
   },
   "license": "MIT",
+  "keywords": [
+    "search",
+    "retrieval",
+    "wasm",
+    "cloudflare-workers",
+    "docs",
+    "embedding"
+  ],
   "engines": {
     "node": ">=20"
   },

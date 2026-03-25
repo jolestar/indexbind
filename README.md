@@ -8,6 +8,8 @@ The current architecture is documented in [docs/architecture/canonical-artifact-
 
 The documentation site lives under [docs/site](./docs/site) and can be previewed with `mdorigin`.
 
+Public docs: [indexbind.jolestar.workers.dev](https://indexbind.jolestar.workers.dev)
+
 The release history is tracked in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Design Constraints
