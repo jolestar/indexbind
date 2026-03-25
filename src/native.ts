@@ -131,11 +131,16 @@ export interface NativeSearchOptions {
   reranker?: NativeRerankerOptions;
   relativePathPrefix?: string;
   metadata?: Record<string, string>;
+  scoreAdjustment?: NativeScoreAdjustmentOptions;
 }
 
 export interface NativeRerankerOptions {
   kind?: 'embedding-v1' | 'heuristic-v1';
   candidatePoolSize?: number;
+}
+
+export interface NativeScoreAdjustmentOptions {
+  metadataNumericMultiplier?: string;
 }
 
 export interface NativeIndex {

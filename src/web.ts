@@ -14,11 +14,16 @@ export interface SearchOptions {
   reranker?: RerankerOptions;
   relativePathPrefix?: string;
   metadata?: Record<string, JsonValue>;
+  scoreAdjustment?: ScoreAdjustmentOptions;
 }
 
 export interface RerankerOptions {
   kind?: 'embedding-v1' | 'heuristic-v1';
   candidatePoolSize?: number;
+}
+
+export interface ScoreAdjustmentOptions {
+  metadataNumericMultiplier?: string;
 }
 
 export interface BestMatch {

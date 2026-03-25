@@ -20,7 +20,9 @@ pub use chunking::ChunkingOptions;
 pub use embedding::EmbeddingBackend;
 pub use error::{IndexbindError, Result};
 #[cfg(not(target_arch = "wasm32"))]
-pub use retriever::{ArtifactInfo, RerankerKind, RerankerOptions, Retriever, SearchOptions};
+pub use retriever::{
+    ArtifactInfo, RerankerKind, RerankerOptions, Retriever, ScoreAdjustmentOptions, SearchOptions,
+};
 pub use types::{
     BestMatch, DocumentHit, MetadataMap, NormalizedDocument, SourceRoot, StoredChunk, StoredDocument,
 };

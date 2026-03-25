@@ -16,12 +16,18 @@ pub struct NodeSearchOptions {
     pub reranker: Option<NodeRerankerOptions>,
     pub relative_path_prefix: Option<String>,
     pub metadata: Option<HashMap<String, String>>,
+    pub score_adjustment: Option<NodeScoreAdjustmentOptions>,
 }
 
 #[napi(object)]
 pub struct NodeRerankerOptions {
     pub kind: Option<String>,
     pub candidate_pool_size: Option<u32>,
+}
+
+#[napi(object)]
+pub struct NodeScoreAdjustmentOptions {
+    pub metadata_numeric_multiplier: Option<String>,
 }
 
 #[napi(object)]
@@ -161,11 +167,18 @@ impl NativeIndex {
                 .as_ref()
                 .and_then(|value| value.relative_path_prefix.clone()),
             metadata: options
-                .and_then(|value| value.metadata)
+                .as_ref()
+                .and_then(|value| value.metadata.clone())
                 .unwrap_or_default()
                 .into_iter()
                 .map(|(key, value)| (key, serde_json::Value::String(value)))
                 .collect(),
+            score_adjustment: options
+                .as_ref()
+                .and_then(|value| value.score_adjustment.as_ref())
+                .map(|value| indexbind_core::ScoreAdjustmentOptions {
+                    metadata_numeric_multiplier: value.metadata_numeric_multiplier.clone(),
+                }),
             ..SearchOptions::default()
         };
         let hits = retriever.search(&query, options).map_err(map_error)?;
