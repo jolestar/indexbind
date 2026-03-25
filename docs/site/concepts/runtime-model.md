@@ -20,8 +20,6 @@ That means the runtime returns:
 - `score`
 - `bestMatch`
 
-It does not provide a public `readDocument()` API any more.
-
 ## Why Retrieval-Only
 
 This keeps the runtime portable.

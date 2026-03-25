@@ -51,8 +51,11 @@
     "build:wasm": "node scripts/build-wasm.mjs",
     "build": "npm run build:native && tsc -p tsconfig.json && npm run build:wasm",
     "build:bundle": "cargo run -p indexbind-build -- build-bundle",
-    "docs:dev": "npx --yes mdorigin dev --root docs/site",
-    "docs:index": "npx --yes mdorigin build index --root docs/site",
+    "docs:dev": "npx --no-install mdorigin dev --root docs/site",
+    "docs:index": "npx --no-install mdorigin build index --root docs/site",
+    "docs:build:cloudflare": "npm run docs:index && npx --no-install mdorigin build cloudflare --root docs/site",
+    "docs:init:cloudflare": "npx --no-install mdorigin init cloudflare --dir . --name indexbind-docs --force",
+    "docs:deploy": "npm run docs:build:cloudflare && npm run docs:init:cloudflare && wrangler deploy",
     "inspect:artifact": "cargo run -p indexbind-build -- inspect",
     "benchmark:basic": "tmpdir=$(mktemp -d) && cargo run -p indexbind-build -- build fixtures/benchmark/basic/docs \"$tmpdir/basic.sqlite\" hashing && cargo run -p indexbind-build -- benchmark \"$tmpdir/basic.sqlite\" fixtures/benchmark/basic/queries.json",
     "smoke:web-bundle": "node scripts/smoke-web-bundle.mjs",
@@ -70,6 +73,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^24.5.2",
+    "mdorigin": "^0.1.2",
     "typescript": "^5.9.2",
     "wrangler": "^4.76.0"
   },

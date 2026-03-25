@@ -18,4 +18,7 @@ Use this section for exact entrypoints and command shapes.
 - [CLI](./cli.md)
   2026-03-25 · Commands for building, inspecting, and benchmarking indexbind artifacts.
 
+- [Packaging](./packaging.md)
+  2026-03-25 · npm package boundaries, native packages, wasm assets, and canonical bundle model files.
+
 <!-- INDEX:END -->

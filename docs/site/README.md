@@ -12,7 +12,7 @@ summary: Embedded retrieval artifacts for Node, browsers, and Workers.
 
 It builds an artifact offline, then opens that artifact locally in Node, browsers, Web Workers, or Cloudflare Workers.
 
-If you want to start with the shortest path, go to [Getting Started](./guides/getting-started.md). If you want to understand the architecture direction, read [Canonical Artifact and WASM](./architecture/canonical-artifact-and-wasm.md).
+If you want to start with the shortest path, go to [Getting Started](./guides/getting-started.md). If you want to understand the architecture direction, read [Canonical Artifact and WASM](./concepts/canonical-artifact-and-wasm.md).
 
 ## Why It Exists
 
@@ -25,16 +25,7 @@ Most search infrastructure is designed around services, crawlers, or runtime-man
 - the runtime API is small enough to embed into another product
 - the same retrieval model can work in Node, browsers, and Workers
 
-That makes it a better fit for docs systems, local tools, static deployments, and products such as `mdorigin`.
-
-## What You Build
-
-`indexbind` currently supports two artifact shapes:
-
-- a native SQLite artifact for Node
-- a canonical file bundle for web and worker runtimes
-
-The bundle shape is the long-term cross-runtime contract. The SQLite path stays valuable for native performance and local ergonomics.
+That makes it a better fit for docs systems, local tools, static deployments, and products such as [`mdorigin`](https://mdorigin.jolestar.workers.dev), where embedded retrieval is part of a larger publishing flow.
 
 ## What It Does
 
@@ -44,32 +35,20 @@ The bundle shape is the long-term cross-runtime contract. The SQLite path stays 
 - provides a Node build API and query APIs for Node, web, and Cloudflare
 - keeps search as an embeddable library concern rather than a hosted service
 
-## Product Position
+## Start Here
 
-`indexbind` is a standalone retrieval engine, but it is also the search foundation for `mdorigin`.
-
-That means the project stays library-first while still proving itself in a real publishing product.
-
-## Runtime Surface
-
-- `indexbind`
-  Node API for native SQLite artifact querying
-- `indexbind/build`
-  programmatic canonical bundle build API
-- `indexbind/web`
-  browser and worker query runtime backed by wasm
-- `indexbind/cloudflare`
-  Cloudflare Worker entry with static wasm module loading
-
-## Current Release
-
-The npm package ships the wasm runtime in `dist/wasm` and `dist/wasm-bundler`.
-
-`model2vec` model files are not part of the npm package itself. They are copied into the canonical bundle artifact when you build a bundle with the `model2vec` backend.
+- [Getting Started](./guides/getting-started.md)
+- [Web and Cloudflare](./guides/web-and-cloudflare.md)
+- [API](./reference/api.md)
+- [CLI](./reference/cli.md)
+- [Packaging](./reference/packaging.md)
+- [Canonical Bundles](./concepts/canonical-bundles.md)
+- [Runtime Model](./concepts/runtime-model.md)
+- [Canonical Artifact and WASM](./concepts/canonical-artifact-and-wasm.md)
 
 ## Local Preview
 
-If you want to preview this documentation site itself with `mdorigin`:
+If you want to preview this documentation site itself with [`mdorigin`](https://mdorigin.jolestar.workers.dev):
 
 ```bash
 npm run docs:index
@@ -81,6 +60,5 @@ npm run docs:dev
 - [Guides](./guides/)
 - [Concepts](./concepts/)
 - [Reference](./reference/)
-- [Architecture](./architecture/)
 
 <!-- INDEX:END -->

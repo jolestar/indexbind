@@ -1,7 +1,7 @@
 {
   "siteTitle": "indexbind",
   "siteDescription": "Embedded retrieval artifacts for Node, browsers, and Workers.",
-  "siteUrl": "https://indexbind.dev",
+  "siteUrl": "https://indexbind-docs.jolestar.workers.dev",
   "favicon": "/favicon.svg",
   "logo": {
     "src": "/favicon.svg",

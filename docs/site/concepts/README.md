@@ -18,4 +18,7 @@ Use this section for the model behind the library, not just the commands.
 - [Runtime Model](./runtime-model.md)
   2026-03-25 · The retrieval-only runtime boundary across Node, browsers, and Cloudflare Workers.
 
+- [Canonical Artifact and WASM](./canonical-artifact-and-wasm.md)
+  2026-03-25 · The current architecture direction for retrieval-only contracts, canonical bundles, and wasm runtimes.
+
 <!-- INDEX:END -->

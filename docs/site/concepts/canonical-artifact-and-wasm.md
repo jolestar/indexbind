@@ -1,8 +1,8 @@
 ---
 title: Canonical Artifact and WASM
-order: 10
+order: 30
 date: 2026-03-25
-summary: Retrieval-only contracts, canonical file artifacts, and wasm-backed query runtimes.
+summary: The current architecture direction for retrieval-only contracts, canonical bundles, and wasm runtimes.
 ---
 
 # Canonical Artifact and WASM
@@ -11,18 +11,18 @@ This page is the short architecture version of the longer design work tracked in
 
 ## Direction
 
-The long-term design is:
+The current design is:
 
-1. keep `indexbind` retrieval-only
+1. keep `indexbind` retrieval-focused
 2. define a canonical file artifact for cross-runtime querying
 3. use wasm as the shared web and worker query runtime
 4. keep SQLite as a native optimization path rather than the cross-runtime public contract
 
 ## Main Decisions
 
-### Retrieval-only API
+### Retrieval-focused API
 
-The runtime returns ranked hits and metadata, not direct document reads.
+The runtime returns ranked hits and metadata. Applications use those results to render, fetch, or navigate to content through their own storage and routing layers.
 
 ### Canonical Artifact
 

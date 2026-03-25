@@ -93,7 +93,7 @@ interface SearchHit {
 }
 ```
 
-There is no required `readDocument()` capability in the core contract. Applications can use `docId`, `relativePath`, `canonicalUrl`, or custom metadata to retrieve full content on their own.
+Applications use `docId`, `relativePath`, `canonicalUrl`, or custom metadata to retrieve full content through their own storage and routing layers.
 
 ## Canonical File Artifact
 

@@ -2,9 +2,21 @@
 
 `indexbind` is a local-first document retrieval library.
 
-The current implementation is native-first. The next-stage architecture direction is documented in [docs/architecture/canonical-artifact-and-wasm.md](./docs/architecture/canonical-artifact-and-wasm.md).
+`indexbind` builds retrieval artifacts offline, then opens them across Node, browsers, and Workers.
+
+The current architecture is documented in [docs/architecture/canonical-artifact-and-wasm.md](./docs/architecture/canonical-artifact-and-wasm.md).
+
+The documentation site lives under [docs/site](./docs/site) and can be previewed with `mdorigin`.
 
 The release history is tracked in [CHANGELOG.md](./CHANGELOG.md).
+
+## Design Constraints
+
+- local-first
+- deterministic builds
+- library-first
+- artifact-first
+- simple enough to embed in other systems
 
 ## Install
 
@@ -30,7 +42,7 @@ If a prebuilt addon is unavailable for your platform, install from source in a R
 npm run build:native:release
 ```
 
-The project goal is deliberately narrow:
+The project scope is deliberately narrow:
 
 - take a fixed document collection as input
 - build a reusable retrieval artifact offline
@@ -45,144 +57,25 @@ The project goal is deliberately narrow:
 - make retrieval available through a small library surface, not only a standalone app
 - keep the output suitable for integration into CLIs, agents, local apps, and publishing systems
 
-## Non-Goals
+## Best Fit
 
-`indexbind` is not intended to be:
+`indexbind` works best when you want to:
 
-- a chat application
-- a hosted vector database
-- a full search product with UI, auth, sync, and server infrastructure
-- an MCP server by default
-- a workflow engine for ingestion pipelines
-- a replacement for general-purpose RAG frameworks
+- build search artifacts from a deterministic document set
+- embed retrieval into another product, CLI, or publishing system
+- ship search without depending on a hosted search service
+- reuse the same retrieval model across Node, browsers, and Workers
 
-## Scope
+## Documentation
 
-The initial prototype should only answer these questions:
-
-1. What should the index artifact format be?
-2. How should documents be chunked and represented?
-3. Which local embedding/runtime options are practical?
-4. What is the smallest useful query API?
-
-Everything else should stay secondary until those decisions are stable.
-
-## Proposed Shape
-
-The likely shape of the project is:
-
-- a build step that accepts normalized document inputs
-- a local embedding step
-- a compact persisted index artifact
-- a runtime library that can open that artifact and return ranked matches
-
-## Current Workflow
-
-Build an artifact from a local docs directory:
-
-```bash
-cargo run -p indexbind-build -- build ./docs ./index.sqlite
-```
-
-Build the canonical file-bundle artifact from a local docs directory:
-
-```bash
-cargo run -p indexbind-build -- build-bundle ./docs ./index.bundle
-```
-
-Build the canonical file-bundle artifact programmatically from Node:
-
-```ts
-import { buildCanonicalBundle } from 'indexbind/build';
-
-await buildCanonicalBundle('./index.bundle', [
-  {
-    relativePath: 'guides/rust.md',
-    canonicalUrl: '/guides/rust',
-    title: 'Rust Guide',
-    content: '# Intro\nRust retrieval guide.',
-    metadata: { lang: 'rust' },
-  },
-], {
-  embeddingBackend: 'hashing',
-});
-```
-
-Inspect an existing artifact:
-
-```bash
-cargo run -p indexbind-build -- inspect ./index.sqlite
-```
-
-Run the bundled benchmark fixture:
-
-```bash
-cargo run -p indexbind-build -- build fixtures/benchmark/basic/docs /tmp/indexbind-basic.sqlite hashing
-cargo run -p indexbind-build -- benchmark /tmp/indexbind-basic.sqlite fixtures/benchmark/basic/queries.json
-```
-
-From Node, open the artifact and run document-first search:
-
-```ts
-import { openIndex } from 'indexbind';
-
-const index = await openIndex('./index.sqlite');
-const hits = await index.search('rust guide', {
-  reranker: { candidatePoolSize: 25 },
-});
-```
-
-From TypeScript in Node, a browser, or a Worker, open the canonical bundle and search it:
-
-```ts
-import { openWebIndex } from 'indexbind/web';
-
-const index = await openWebIndex('./index.bundle');
-const hits = await index.search('rust guide', {
-  reranker: { kind: 'heuristic-v1', candidatePoolSize: 25 },
-});
-```
-
-From a Cloudflare Worker, use the Cloudflare-specific entry so the runtime can load wasm through a static Worker module import:
-
-```ts
-import { openWebIndex } from 'indexbind/cloudflare';
-
-const index = await openWebIndex(bundleBaseUrl);
-const hits = await index.search('rust guide');
-```
-
-Web runtime notes:
-
-- `indexbind/web` supports canonical bundles built with either `hashing` or `model2vec`.
-- `indexbind/web` now requires wasm initialization to succeed; it no longer falls back to a separate JS query engine.
-- Use `indexbind/cloudflare` inside Cloudflare Workers.
-- `model2vec` bundles carry `model/tokenizer.json`, `model/config.json`, and `model/model.safetensors` inside the bundle so the wasm query runtime can embed queries without host filesystem access.
-- The npm package ships the wasm runtime code in `dist/wasm` and `dist/wasm-bundler`.
-- Model files are not shipped in the npm package; they are embedded into the canonical bundle artifact generated by `build-bundle`.
-
-Current native loading behavior:
-
-- local development prefers `native/indexbind.<platform>.node`
-- packaged installs can fall back to platform packages such as `@indexbind/native-darwin-x64`
-- unsupported or missing native targets now return an explicit platform-specific error
-
-## Release Model
-
-The published npm release is split into:
-
-- `indexbind` for the TypeScript API and native loader
-- platform packages such as `@indexbind/native-darwin-x64` for prebuilt NAPI binaries
-
-In normal use you only install `indexbind`; npm resolves the platform package automatically when a matching prebuilt target exists. This keeps installs small while preserving a source-build path for unsupported targets.
-
-## Design Constraints
-
-- local-first
-- deterministic builds
-- library-first
-- artifact-first
-- simple enough to embed in other systems
+- [Documentation site source](./docs/site)
+- [Getting Started](./docs/site/guides/getting-started.md)
+- [Web and Cloudflare](./docs/site/guides/web-and-cloudflare.md)
+- [Canonical Bundles](./docs/site/concepts/canonical-bundles.md)
+- [Runtime Model](./docs/site/concepts/runtime-model.md)
+- [API Reference](./docs/site/reference/api.md)
+- [CLI Reference](./docs/site/reference/cli.md)
+- [Architecture](./docs/site/concepts/canonical-artifact-and-wasm.md)
 
 ## Name
 
