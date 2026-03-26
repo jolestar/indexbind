@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- Improved Chinese lexical tokenization with a shared `mixed-cjk-bigram-v2` tokenizer across SQLite FTS, canonical postings, reranking, and web/wasm runtimes.
+- Added explicit lexical tokenizer metadata to artifact inspection and runtime info.
+- Fixed tokenizer coverage for newer CJK Unicode extension blocks and removed extra allocations from lexical token counting during chunking.
+
 ## 0.2.2
 
 - Added and published a public documentation site at `https://indexbind.jolestar.workers.dev`.
