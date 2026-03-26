@@ -641,7 +641,10 @@ function isCjk(ch: string): boolean {
     (codePoint >= 0x2b740 && codePoint <= 0x2b81f) ||
     (codePoint >= 0x2b820 && codePoint <= 0x2ceaf) ||
     (codePoint >= 0x2ceb0 && codePoint <= 0x2ebef) ||
-    (codePoint >= 0x30000 && codePoint <= 0x3134f)
+    (codePoint >= 0x2ebf0 && codePoint <= 0x2ee5f) ||
+    (codePoint >= 0x30000 && codePoint <= 0x3134f) ||
+    (codePoint >= 0x31350 && codePoint <= 0x323af) ||
+    (codePoint >= 0x323b0 && codePoint <= 0x3347f)
   );
 }
 

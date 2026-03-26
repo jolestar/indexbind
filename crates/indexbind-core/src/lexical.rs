@@ -54,7 +54,38 @@ pub fn tokenize_for_storage(input: &str) -> String {
 }
 
 pub fn estimate_token_count(input: &str) -> usize {
-    tokenize(input).len().max(1)
+    let mut count = 0usize;
+    let mut current_len = 0usize;
+    let mut current_class: Option<ScriptClass> = None;
+
+    let flush = |count: &mut usize, current_len: &mut usize, current_class: Option<ScriptClass>| {
+        if *current_len == 0 {
+            return;
+        }
+        match current_class {
+            Some(ScriptClass::Alnum) => *count += 1,
+            Some(ScriptClass::Cjk) => *count += cjk_token_count(*current_len),
+            None => {}
+        }
+        *current_len = 0;
+    };
+
+    for ch in input.chars() {
+        let Some(class) = classify_char(ch) else {
+            flush(&mut count, &mut current_len, current_class);
+            current_class = None;
+            continue;
+        };
+
+        if current_class != Some(class) {
+            flush(&mut count, &mut current_len, current_class);
+            current_class = Some(class);
+        }
+        current_len += 1;
+    }
+
+    flush(&mut count, &mut current_len, current_class);
+    count.max(1)
 }
 
 pub fn normalize_for_heuristic(input: &str) -> String {
@@ -87,6 +118,14 @@ fn push_cjk_tokens(tokens: &mut Vec<String>, text: &str) {
     }
 }
 
+fn cjk_token_count(char_len: usize) -> usize {
+    match char_len {
+        0 => 0,
+        1 | 2 => 1,
+        len => len - 1,
+    }
+}
+
 fn classify_char(ch: char) -> Option<ScriptClass> {
     if is_cjk(ch) {
         Some(ScriptClass::Cjk)
@@ -108,7 +147,10 @@ fn is_cjk(ch: char) -> bool {
             | 0x2B740..=0x2B81F
             | 0x2B820..=0x2CEAF
             | 0x2CEB0..=0x2EBEF
+            | 0x2EBF0..=0x2EE5F
             | 0x30000..=0x3134F
+            | 0x31350..=0x323AF
+            | 0x323B0..=0x3347F
     )
 }
 
@@ -147,5 +189,11 @@ mod tests {
         );
         assert_eq!(estimate_token_count("模块化区块链"), 5);
         assert_eq!(LEXICAL_TOKENIZER_VERSION, "mixed-cjk-bigram-v2");
+    }
+
+    #[test]
+    fn counts_newer_cjk_extensions_as_cjk() {
+        assert_eq!(tokenize("\u{31350}\u{31351}\u{31352}"), vec!["𱍐𱍑", "𱍑𱍒"]);
+        assert_eq!(estimate_token_count("\u{31350}\u{31351}\u{31352}"), 2);
     }
 }
