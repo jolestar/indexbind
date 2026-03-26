@@ -95,6 +95,8 @@ struct SearchOptions {
     relative_path_prefix: Option<String>,
     #[serde(default)]
     metadata: MetadataMap,
+    #[serde(default)]
+    score_adjustment: Option<ScoreAdjustmentOptions>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -102,6 +104,12 @@ struct SearchOptions {
 struct RerankerOptions {
     kind: Option<String>,
     candidate_pool_size: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ScoreAdjustmentOptions {
+    metadata_numeric_multiplier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -224,10 +232,47 @@ impl WasmIndex {
         } else {
             Vec::new()
         };
-        let fused = self.fuse_documents(&vector_docs, &lexical_docs, top_k);
-        let reranked = self.rerank_documents(&query, fused, options.reranker.as_ref(), top_k)?;
-        serde_wasm_bindgen::to_value(&reranked).map_err(to_js_error)
+        let fused = self.fuse_documents(&vector_docs, &lexical_docs, limit);
+        let reranked = self.rerank_documents(
+            &query,
+            fused,
+            options.reranker.as_ref(),
+            rerank_candidate_limit,
+        )?;
+        let adjusted =
+            apply_score_adjustment(reranked, options.score_adjustment.as_ref(), top_k);
+        serde_wasm_bindgen::to_value(&adjusted).map_err(to_js_error)
     }
+}
+
+fn apply_score_adjustment(
+    mut hits: Vec<DocumentHit>,
+    config: Option<&ScoreAdjustmentOptions>,
+    top_k: usize,
+) -> Vec<DocumentHit> {
+    let Some(config) = config else {
+        hits.truncate(top_k);
+        return hits;
+    };
+
+    let Some(field) = config.metadata_numeric_multiplier.as_deref() else {
+        hits.truncate(top_k);
+        return hits;
+    };
+
+    for hit in &mut hits {
+        let multiplier = hit
+            .metadata
+            .get(field)
+            .and_then(Value::as_f64)
+            .filter(|value| value.is_finite() && *value > 0.0)
+            .unwrap_or(1.0) as f32;
+        hit.score *= multiplier;
+    }
+
+    hits.sort_by(|left, right| right.score.partial_cmp(&left.score).unwrap());
+    hits.truncate(top_k);
+    hits
 }
 
 impl WasmIndex {
