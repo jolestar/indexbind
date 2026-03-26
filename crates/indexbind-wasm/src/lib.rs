@@ -232,7 +232,7 @@ impl WasmIndex {
         } else {
             Vec::new()
         };
-        let fused = self.fuse_documents(&vector_docs, &lexical_docs, top_k);
+        let fused = self.fuse_documents(&vector_docs, &lexical_docs, limit);
         let reranked = self.rerank_documents(
             &query,
             fused,

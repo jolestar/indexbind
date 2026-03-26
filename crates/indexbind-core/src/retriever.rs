@@ -138,6 +138,11 @@ impl Retriever {
         let limit = (options.top_k * options.candidate_multiplier.max(1))
             .max(rerank_candidate_limit)
             .max(options.top_k);
+        let final_candidate_limit = if options.score_adjustment.is_some() {
+            limit
+        } else {
+            rerank_candidate_limit
+        };
         let formatted_query = format_query_for_embedding(query);
         let query_embedding = self
             .embedder
@@ -156,7 +161,7 @@ impl Retriever {
             query,
             &fused_hits,
             options.reranker.as_ref(),
-            rerank_candidate_limit,
+            final_candidate_limit,
         )?;
         Ok(apply_score_adjustment(
             reranked,
@@ -1010,6 +1015,73 @@ mod tests {
             .unwrap();
 
         assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].doc_id, "doc-high");
+    }
+
+    #[test]
+    fn metadata_numeric_multiplier_can_promote_hits_without_reranker() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("docs");
+        std::fs::create_dir_all(&source).unwrap();
+
+        let artifact = dir.path().join("index.sqlite");
+        let mut low_weight = BTreeMap::new();
+        low_weight.insert("directory_weight".to_string(), Value::from(0.5));
+        let mut high_weight = BTreeMap::new();
+        high_weight.insert("directory_weight".to_string(), Value::from(2.0));
+
+        build_artifact(
+            &artifact,
+            &[
+                NormalizedDocument {
+                    doc_id: Some("doc-low".to_string()),
+                    source_path: None,
+                    relative_path: "low.md".to_string(),
+                    canonical_url: None,
+                    title: Some("Calling Layer Overview".to_string()),
+                    summary: None,
+                    content: "Calling layer design for agents.".to_string(),
+                    metadata: low_weight,
+                },
+                NormalizedDocument {
+                    doc_id: Some("doc-high".to_string()),
+                    source_path: None,
+                    relative_path: "high.md".to_string(),
+                    canonical_url: None,
+                    title: Some("Calling Layer Notes".to_string()),
+                    summary: None,
+                    content: "Calling layer notes for agents.".to_string(),
+                    metadata: high_weight,
+                },
+            ],
+            &BuildArtifactOptions {
+                source_root: SourceRoot {
+                    id: "root".to_string(),
+                    original_path: ".".to_string(),
+                },
+                embedding_backend: EmbeddingBackend::Hashing { dimensions: 128 },
+                chunking: Default::default(),
+            },
+        )
+        .unwrap();
+
+        let mut retriever = Retriever::open(&artifact).unwrap();
+        let hits = retriever
+            .search(
+                "calling layer",
+                SearchOptions {
+                    top_k: 1,
+                    candidate_multiplier: 8,
+                    hybrid: true,
+                    score_adjustment: Some(ScoreAdjustmentOptions {
+                        metadata_numeric_multiplier: Some("directory_weight".to_string()),
+                    }),
+                    ..SearchOptions::default()
+                },
+            )
+            .unwrap();
+
+        assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].doc_id, "doc-high");
     }
 }
