@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Added YAML frontmatter ingestion for directory builds, including `title`, `summary`, `canonical_url`, and metadata extraction.
+- Added a document-level incremental build cache with fresh export to SQLite artifacts and canonical bundles.
+- Added optional `git diff`-based change detection and trigger-friendly build/update APIs for CLI and programmatic workflows.
+- Refreshed the README and documentation landing pages to clarify platform support, artifact paths, local knowledge-base fit, and public positioning.
+
 ## 0.2.3
 
 - Improved Chinese lexical tokenization with a shared `mixed-cjk-bigram-v2` tokenizer across SQLite FTS, canonical postings, reranking, and web/wasm runtimes.
