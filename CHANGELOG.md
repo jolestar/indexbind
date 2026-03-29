@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Fixed the published root npm package to include the full `dist/` tree, restoring `indexbind/web` and `indexbind/cloudflare` imports that broke in `0.3.1` because `dist/web-core.js` was omitted.
+- Added release-time root package verification to catch missing files and broken relative imports before publishing npm tarballs.
+
 ## 0.3.1
 
 - Fixed `indexbind/cloudflare` and `indexbind/web` bundle loading in real Cloudflare Worker deployments by separating the Worker wasm bootstrap from the generic web runtime and allowing hosts to provide an explicit bundle `fetch` implementation.
