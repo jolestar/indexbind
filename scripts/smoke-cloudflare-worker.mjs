@@ -200,8 +200,7 @@ export default {
 };
 
 async function openVirtualBundleIndex(bundleBaseUrl: string, backingBaseUrl: string) {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const requestUrl =
       typeof input === 'string'
         ? input
@@ -212,20 +211,15 @@ async function openVirtualBundleIndex(bundleBaseUrl: string, backingBaseUrl: str
       const relativePath = requestUrl.slice(bundleBaseUrl.length);
       const rewrittenUrl = new URL(relativePath, backingBaseUrl);
       if (typeof input === 'string' || input instanceof URL) {
-        return originalFetch(rewrittenUrl, init);
+        return fetch(rewrittenUrl, init);
       }
 
-      return originalFetch(new Request(rewrittenUrl, input), init);
+      return fetch(new Request(rewrittenUrl, input), init);
     }
 
-    return originalFetch(input as RequestInfo, init);
+    return fetch(input as RequestInfo, init);
   };
-
-  try {
-    return await openWebIndex(new URL(bundleBaseUrl));
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  return await openWebIndex(new URL(bundleBaseUrl), { fetch: customFetch });
 }
 `,
   );

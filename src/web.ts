@@ -58,6 +58,10 @@ export interface WebArtifactInfo {
   features: string[];
 }
 
+export interface OpenWebIndexOptions {
+  fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+}
+
 interface CanonicalArtifactManifest {
   schemaVersion: string;
   artifactFormat: string;
@@ -208,17 +212,22 @@ async function openWebIndexInternal(
     postings: CanonicalPostings,
     modelBuffers?: [ArrayBuffer, ArrayBuffer, ArrayBuffer],
   ) => Promise<WasmSearchBackend>,
+  options: OpenWebIndexOptions = {},
 ): Promise<WebIndex> {
-  const manifest = await loadJson<CanonicalArtifactManifest>(base, 'manifest.json');
-  const documents = await loadJson<CanonicalDocumentRecord[]>(base, manifest.files.documents);
-  const chunks = await loadJson<CanonicalChunkRecord[]>(base, manifest.files.chunks);
-  const postings = await loadJson<CanonicalPostings>(base, manifest.files.postings);
-  const vectorsBuffer = await loadArrayBuffer(base, manifest.files.vectors);
+  const manifest = await loadJson<CanonicalArtifactManifest>(base, 'manifest.json', options);
+  const documents = await loadJson<CanonicalDocumentRecord[]>(
+    base,
+    manifest.files.documents,
+    options,
+  );
+  const chunks = await loadJson<CanonicalChunkRecord[]>(base, manifest.files.chunks, options);
+  const postings = await loadJson<CanonicalPostings>(base, manifest.files.postings, options);
+  const vectorsBuffer = await loadArrayBuffer(base, manifest.files.vectors, options);
   const modelBuffers = manifest.files.model
     ? await Promise.all([
-        loadArrayBuffer(base, manifest.files.model.tokenizer),
-        loadArrayBuffer(base, manifest.files.model.weights),
-        loadArrayBuffer(base, manifest.files.model.config),
+        loadArrayBuffer(base, manifest.files.model.tokenizer, options),
+        loadArrayBuffer(base, manifest.files.model.weights, options),
+        loadArrayBuffer(base, manifest.files.model.config, options),
       ])
     : undefined;
   const wasmIndex = await createBackend(
@@ -232,32 +241,42 @@ async function openWebIndexInternal(
   return new WebIndex(manifest, documents, wasmIndex);
 }
 
-export async function openWebIndex(base: string | URL): Promise<WebIndex> {
-  return openWebIndexInternal(base, createBrowserWasmIndex);
+export async function openWebIndex(
+  base: string | URL,
+  options: OpenWebIndexOptions = {},
+): Promise<WebIndex> {
+  return openWebIndexInternal(base, createBrowserWasmIndex, options);
 }
 
 export async function openWebIndexWithBindings(
   base: string | URL,
   WasmIndex: WasmIndexBinding,
+  options: OpenWebIndexOptions = {},
 ): Promise<WebIndex> {
-  return openWebIndexInternal(base, async (manifest, documents, chunks, vectorsBuffer, postings, modelBuffers) =>
-    createBoundWasmIndex(
-      manifest,
-      documents,
-      chunks,
-      vectorsBuffer,
-      postings,
-      modelBuffers,
-      WasmIndex,
-    ),
+  return openWebIndexInternal(
+    base,
+    async (manifest, documents, chunks, vectorsBuffer, postings, modelBuffers) =>
+      createBoundWasmIndex(
+        manifest,
+        documents,
+        chunks,
+        vectorsBuffer,
+        postings,
+        modelBuffers,
+        WasmIndex,
+      ),
+    options,
   );
 }
 
-export async function openCloudflareIndex(base: string | URL): Promise<WebIndex> {
+export async function openCloudflareIndex(
+  base: string | URL,
+  options: OpenWebIndexOptions = {},
+): Promise<WebIndex> {
   const cloudflareModule = (await import('./cloudflare.js')) as {
-    openWebIndex: (base: string | URL) => Promise<WebIndex>;
+    openWebIndex: (base: string | URL, options?: OpenWebIndexOptions) => Promise<WebIndex>;
   };
-  return cloudflareModule.openWebIndex(base);
+  return cloudflareModule.openWebIndex(base, options);
 }
 
 async function createBrowserWasmIndex(
@@ -741,15 +760,24 @@ function decodeVectors(buffer: ArrayBuffer, chunkCount: number, dimensions: numb
   return vectors;
 }
 
-async function loadJson<T>(base: string | URL, fileName: string): Promise<T> {
-  const buffer = await loadArrayBuffer(base, fileName);
+async function loadJson<T>(
+  base: string | URL,
+  fileName: string,
+  options: OpenWebIndexOptions = {},
+): Promise<T> {
+  const buffer = await loadArrayBuffer(base, fileName, options);
   return JSON.parse(new TextDecoder().decode(buffer)) as T;
 }
 
-async function loadArrayBuffer(base: string | URL, fileName: string): Promise<ArrayBuffer> {
+async function loadArrayBuffer(
+  base: string | URL,
+  fileName: string,
+  options: OpenWebIndexOptions = {},
+): Promise<ArrayBuffer> {
   const resource = resolveResource(base, fileName);
   if (resource.kind === 'url') {
-    const response = await fetch(resource.value);
+    const fetchImpl = options.fetch ?? fetch;
+    const response = await fetchImpl(resource.value);
     if (!response.ok) {
       throw new Error(`failed to load ${resource.value}: ${response.status} ${response.statusText}`);
     }

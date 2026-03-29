@@ -168,7 +168,11 @@ import { openWebIndex } from 'indexbind/web';
 
 This path requires wasm initialization to succeed.
 
-`openWebIndex(base)` returns a `WebIndex`.
+`openWebIndex(base, options?)` returns a `WebIndex`.
+
+Optional open-time options:
+
+- `fetch?`: override resource loading for canonical bundle files when the host wants to virtualize bundle storage
 
 `WebIndex.info()` returns canonical bundle metadata such as:
 
@@ -193,6 +197,8 @@ import { openWebIndex } from 'indexbind/cloudflare';
 ```
 
 Use this instead of `indexbind/web` inside Workers so wasm can be loaded through the Worker-compatible static module path.
+
+It accepts the same optional `fetch` override as `indexbind/web`, which is useful when the host wants to read bundle files through `ASSETS.fetch(...)` instead of public URLs.
 
 ## Search Defaults and Patterns
 

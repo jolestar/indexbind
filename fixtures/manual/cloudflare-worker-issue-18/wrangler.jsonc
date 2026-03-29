@@ -1,8 +1,12 @@
 {
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
   "name": "indexbind-issue-18-manual",
   "main": "./index.ts",
   "compatibility_date": "2026-03-29",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
   }
 }

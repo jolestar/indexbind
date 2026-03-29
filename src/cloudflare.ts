@@ -7,6 +7,7 @@ export {
   type BestMatch,
   type DocumentHit,
   type JsonValue,
+  type OpenWebIndexOptions,
   type RerankerOptions,
   type SearchOptions,
   type WebArtifactInfo,
@@ -14,12 +15,12 @@ export {
 
 let wasmInitialized = false;
 
-export async function openWebIndex(base: string | URL) {
+export async function openWebIndex(base: string | URL, options = {}) {
   if (!wasmInitialized) {
     initSync({ module: wasmModule });
     wasmInitialized = true;
   }
-  return openWebIndexWithBindings(base, WasmIndex);
+  return openWebIndexWithBindings(base, WasmIndex, options);
 }
 
 export { openWebIndex as openCloudflareIndex };
