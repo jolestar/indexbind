@@ -25,6 +25,21 @@ const nativeTarball = pack(nativePackageDir, packDir);
 run(npmCommand, ['init', '-y'], tempDir);
 run(npmCommand, ['install', rootTarball, nativeTarball], tempDir);
 
+const docsDir = path.join(tempDir, 'docs');
+fs.mkdirSync(docsDir, { recursive: true });
+fs.writeFileSync(
+  path.join(docsDir, 'rust.md'),
+  '# Rust Guide\n\nRust retrieval guide for local search.\n',
+);
+
+const cliArtifactPath = path.join(tempDir, 'cli.sqlite');
+run(
+  npmCommand,
+  ['exec', '--', 'indexbind', 'build', docsDir, cliArtifactPath, 'hashing'],
+  tempDir,
+);
+run(npmCommand, ['exec', '--', 'indexbind', 'inspect', cliArtifactPath], tempDir);
+
 const verifyScript = path.join(tempDir, 'verify.mjs');
 fs.writeFileSync(
   verifyScript,

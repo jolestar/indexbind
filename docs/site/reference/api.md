@@ -117,9 +117,14 @@ Use this entrypoint when your host application already has a normalized document
 Available helpers:
 
 - `buildCanonicalBundle(outputDir, documents, options?)`
+- `buildFromDirectory(inputDir, outputPath, options?)`
+- `buildCanonicalBundleFromDirectory(inputDir, outputDir, options?)`
 - `updateBuildCache(cachePath, documents, options?, removedRelativePaths?)`
+- `updateBuildCacheFromDirectory(inputDir, cachePath, options?, updateMode?)`
 - `exportArtifactFromBuildCache(cachePath, outputPath)`
 - `exportCanonicalBundleFromBuildCache(cachePath, outputDir)`
+- `inspectArtifact(artifactPath)`
+- `benchmarkArtifact(artifactPath, queriesJsonPath)`
 
 `updateBuildCache(...)` returns:
 

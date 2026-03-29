@@ -1,10 +1,13 @@
 import {
   loadNativeModule,
+  type NativeArtifactInfo,
   type NativeBuildStats,
+  type NativeBenchmarkSummary,
   type NativeBuildDocument,
   type NativeIncrementalBuildStats,
   type NativeBuildOptions,
   type NativeCanonicalBuildStats,
+  type NativeDirectoryUpdateMode,
 } from './native.js';
 
 export type JsonValue =
@@ -58,6 +61,48 @@ export interface IncrementalBuildStats {
   activeChunkCount: number;
 }
 
+export interface DirectoryUpdateMode {
+  mode?: 'full-scan' | 'git-diff';
+  baseRevision?: string;
+}
+
+export interface BuildArtifactInfo {
+  schemaVersion: string;
+  builtAt: string;
+  embeddingBackend: unknown;
+  lexicalTokenizer: string;
+  sourceRoot: unknown;
+  documentCount: number;
+  chunkCount: number;
+}
+
+export interface BenchmarkCaseResult {
+  name: string;
+  query: string;
+  expectedTopHit: string;
+  actualTopHit?: string;
+  passed: boolean;
+}
+
+export interface BenchmarkSummary {
+  fixture: string;
+  total: number;
+  passed: number;
+  failed: number;
+  results: BenchmarkCaseResult[];
+}
+
+export async function buildFromDirectory(
+  inputDir: string,
+  outputPath: string,
+  options: BuildCanonicalBundleOptions = {},
+): Promise<BuildStats> {
+  const module = loadNativeModule();
+  return mapPlainBuildStats(
+    module.buildArtifactFromDirectory(inputDir, outputPath, mapBuildOptions(options)),
+  );
+}
+
 export async function buildCanonicalBundle(
   outputDir: string,
   documents: BuildDocument[],
@@ -65,17 +110,19 @@ export async function buildCanonicalBundle(
 ): Promise<CanonicalBuildStats> {
   const module = loadNativeModule();
   const nativeDocuments = documents.map(mapBuildDocument);
-  const nativeOptions: NativeBuildOptions = {
-    embeddingBackend: options.embeddingBackend,
-    hashingDimensions: options.hashingDimensions,
-    model: options.model,
-    batchSize: options.batchSize,
-    sourceRootId: options.sourceRootId,
-    sourceRootPath: options.sourceRootPath,
-    targetTokens: options.targetTokens,
-    overlapTokens: options.overlapTokens,
-  };
+  const nativeOptions = mapBuildOptions(options);
   return mapBuildStats(module.buildCanonicalBundle(outputDir, nativeDocuments, nativeOptions));
+}
+
+export async function buildCanonicalBundleFromDirectory(
+  inputDir: string,
+  outputDir: string,
+  options: BuildCanonicalBundleOptions = {},
+): Promise<CanonicalBuildStats> {
+  const module = loadNativeModule();
+  return mapBuildStats(
+    module.buildCanonicalBundleFromDirectory(inputDir, outputDir, mapBuildOptions(options)),
+  );
 }
 
 export async function updateBuildCache(
@@ -86,22 +133,29 @@ export async function updateBuildCache(
 ): Promise<IncrementalBuildStats> {
   const module = loadNativeModule();
   const nativeDocuments = documents.map(mapBuildDocument);
-  const nativeOptions: NativeBuildOptions = {
-    embeddingBackend: options.embeddingBackend,
-    hashingDimensions: options.hashingDimensions,
-    model: options.model,
-    batchSize: options.batchSize,
-    sourceRootId: options.sourceRootId,
-    sourceRootPath: options.sourceRootPath,
-    targetTokens: options.targetTokens,
-    overlapTokens: options.overlapTokens,
-  };
   return mapIncrementalBuildStats(
     module.updateBuildCacheFromDocuments(
       cachePath,
       nativeDocuments,
       removedRelativePaths,
-      nativeOptions,
+      mapBuildOptions(options),
+    ),
+  );
+}
+
+export async function updateBuildCacheFromDirectory(
+  inputDir: string,
+  cachePath: string,
+  options: BuildCanonicalBundleOptions = {},
+  updateMode: DirectoryUpdateMode = {},
+): Promise<IncrementalBuildStats> {
+  const module = loadNativeModule();
+  return mapIncrementalBuildStats(
+    module.updateBuildCacheFromDirectory(
+      inputDir,
+      cachePath,
+      mapBuildOptions(options),
+      mapDirectoryUpdateMode(updateMode),
     ),
   );
 }
@@ -120,6 +174,19 @@ export async function exportCanonicalBundleFromBuildCache(
 ): Promise<CanonicalBuildStats> {
   const module = loadNativeModule();
   return mapBuildStats(module.exportCanonicalBundleFromCache(cachePath, outputDir));
+}
+
+export async function inspectArtifact(artifactPath: string): Promise<BuildArtifactInfo> {
+  const module = loadNativeModule();
+  return mapArtifactInfo(module.inspectArtifact(artifactPath));
+}
+
+export async function benchmarkArtifact(
+  artifactPath: string,
+  queriesJsonPath: string,
+): Promise<BenchmarkSummary> {
+  const module = loadNativeModule();
+  return mapBenchmarkSummary(module.benchmarkArtifact(artifactPath, queriesJsonPath));
 }
 
 function mapBuildDocument(document: BuildDocument): NativeBuildDocument {
@@ -159,5 +226,53 @@ function mapIncrementalBuildStats(stats: NativeIncrementalBuildStats): Increment
     removedDocumentCount: stats.removedDocumentCount,
     activeDocumentCount: stats.activeDocumentCount,
     activeChunkCount: stats.activeChunkCount,
+  };
+}
+
+function mapBuildOptions(options: BuildCanonicalBundleOptions): NativeBuildOptions {
+  return {
+    embeddingBackend: options.embeddingBackend,
+    hashingDimensions: options.hashingDimensions,
+    model: options.model,
+    batchSize: options.batchSize,
+    sourceRootId: options.sourceRootId,
+    sourceRootPath: options.sourceRootPath,
+    targetTokens: options.targetTokens,
+    overlapTokens: options.overlapTokens,
+  };
+}
+
+function mapDirectoryUpdateMode(updateMode: DirectoryUpdateMode): NativeDirectoryUpdateMode {
+  return {
+    mode: updateMode.mode,
+    baseRevision: updateMode.baseRevision,
+  };
+}
+
+function mapArtifactInfo(info: NativeArtifactInfo): BuildArtifactInfo {
+  return {
+    schemaVersion: info.schemaVersion,
+    builtAt: info.builtAt,
+    embeddingBackend: JSON.parse(info.embeddingBackend),
+    lexicalTokenizer: info.lexicalTokenizer,
+    sourceRoot: JSON.parse(info.sourceRoot),
+    documentCount: info.documentCount,
+    chunkCount: info.chunkCount,
+  };
+}
+
+function mapBenchmarkSummary(summary: NativeBenchmarkSummary): BenchmarkSummary {
+  return {
+    fixture: summary.fixture,
+    total: summary.total,
+    passed: summary.passed,
+    failed: summary.failed,
+    results: summary.results.map((result) => ({
+      name: result.name,
+      query: result.query,
+      expectedTopHit: result.expectedTopHit,
+      actualTopHit: result.actualTopHit,
+      passed: result.passed,
+    })),
   };
 }

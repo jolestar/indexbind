@@ -65,7 +65,7 @@ Workers deployment notes for retrieval.
 For a local docs folder:
 
 ```bash
-cargo run -p indexbind-build -- build ./docs ./index.sqlite
+npx indexbind build ./docs ./index.sqlite
 ```
 
 ## Query It from Node
@@ -108,7 +108,7 @@ Use the native SQLite artifact when your runtime is Node and you want the simple
 The canonical bundle is the portable artifact for browsers and workers:
 
 ```bash
-cargo run -p indexbind-build -- build-bundle ./docs ./index.bundle
+npx indexbind build-bundle ./docs ./index.bundle
 ```
 
 You can also build the same bundle programmatically:
@@ -135,9 +135,9 @@ await buildCanonicalBundle('./index.bundle', [
 If you rebuild the same local corpus repeatedly, keep a mutable cache and export fresh artifacts from it:
 
 ```bash
-cargo run -p indexbind-build -- update-cache ./docs ./.indexbind-cache.sqlite --git-diff
-cargo run -p indexbind-build -- export-artifact ./.indexbind-cache.sqlite ./index.sqlite
-cargo run -p indexbind-build -- export-bundle ./.indexbind-cache.sqlite ./index.bundle
+npx indexbind update-cache ./docs ./.indexbind-cache.sqlite --git-diff
+npx indexbind export-artifact ./.indexbind-cache.sqlite ./index.sqlite
+npx indexbind export-bundle ./.indexbind-cache.sqlite ./index.bundle
 ```
 
 Use this path when:
@@ -171,8 +171,10 @@ Use the canonical bundle when you want the same retrieval data to work in browse
 Inspect a native SQLite artifact:
 
 ```bash
-cargo run -p indexbind-build -- inspect ./index.sqlite
+npx indexbind inspect ./index.sqlite
 ```
+
+The Rust `indexbind-build` binary still exists for Rust-native workflows, but the npm package now ships the public `indexbind` CLI.
 
 Run the bundled regression fixture:
 

@@ -141,6 +141,27 @@ export interface NativeIncrementalBuildStats {
   activeChunkCount: number;
 }
 
+export interface NativeDirectoryUpdateMode {
+  mode?: 'full-scan' | 'git-diff';
+  baseRevision?: string;
+}
+
+export interface NativeBenchmarkCaseResult {
+  name: string;
+  query: string;
+  expectedTopHit: string;
+  actualTopHit?: string;
+  passed: boolean;
+}
+
+export interface NativeBenchmarkSummary {
+  fixture: string;
+  total: number;
+  passed: number;
+  failed: number;
+  results: NativeBenchmarkCaseResult[];
+}
+
 export interface NativeSearchOptions {
   topK?: number;
   hybrid?: boolean;
@@ -168,9 +189,19 @@ export interface NativeModule {
   NativeIndex: {
     open(artifactPath: string): NativeIndex;
   };
+  buildArtifactFromDirectory(
+    inputDir: string,
+    outputPath: string,
+    options?: NativeBuildOptions,
+  ): NativeBuildStats;
   buildCanonicalBundle(
     outputDir: string,
     documents: NativeBuildDocument[],
+    options?: NativeBuildOptions,
+  ): NativeCanonicalBuildStats;
+  buildCanonicalBundleFromDirectory(
+    inputDir: string,
+    outputDir: string,
     options?: NativeBuildOptions,
   ): NativeCanonicalBuildStats;
   updateBuildCacheFromDocuments(
@@ -179,11 +210,19 @@ export interface NativeModule {
     removedRelativePaths?: string[],
     options?: NativeBuildOptions,
   ): NativeIncrementalBuildStats;
+  updateBuildCacheFromDirectory(
+    inputDir: string,
+    cachePath: string,
+    options?: NativeBuildOptions,
+    updateMode?: NativeDirectoryUpdateMode,
+  ): NativeIncrementalBuildStats;
   exportArtifactFromCache(cachePath: string, outputPath: string): NativeBuildStats;
   exportCanonicalBundleFromCache(
     cachePath: string,
     outputDir: string,
   ): NativeCanonicalBuildStats;
+  inspectArtifact(artifactPath: string): NativeArtifactInfo;
+  benchmarkArtifact(artifactPath: string, queriesJsonPath: string): NativeBenchmarkSummary;
 }
 
 export function loadNativeModule(): NativeModule {
