@@ -231,13 +231,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ needs.verify.outputs.release_version }}" \
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/releases" \
+            -f tag_name="v${{ needs.verify.outputs.release_version }}" \
+            -F generate_release_notes=true \
+            -f body="$(cat release-notes.md)"
+
+          gh release upload "v${{ needs.verify.outputs.release_version }}" \
             release/assets/*.tgz \
             release/assets/SHA256SUMS.txt \
-            --repo "${GITHUB_REPOSITORY}" \
-            --verify-tag \
-            --generate-notes \
-            --notes "$(cat release-notes.md)"
+            --repo "${GITHUB_REPOSITORY}"
 
       - name: Setup Node for npm publish
         uses: actions/setup-node@v6
