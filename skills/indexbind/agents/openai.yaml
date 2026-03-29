@@ -1,7 +1,7 @@
 interface:
   display_name: "Indexbind"
-  short_description: "Use indexbind in Node, web, and Workers"
-  default_prompt: "Use $indexbind to choose the right indexbind artifact and API path for Node, web, worker, or Cloudflare usage."
+  short_description: "Install and use indexbind"
+  default_prompt: "Use $indexbind to choose the right indexbind CLI, artifact, and API path for Node, web, worker, or Cloudflare usage."
 
 policy:
   allow_implicit_invocation: true

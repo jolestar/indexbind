@@ -114,6 +114,8 @@ Main input shape:
 
 Use this entrypoint when your host application already has a normalized document set and wants to build directly from code instead of scanning a directory through the CLI.
 
+For a larger mixed-content example where the host classifies documents and injects metadata before indexing, see [Adoption Examples](../guides/adoption-examples.md).
+
 Available helpers:
 
 - `buildCanonicalBundle(outputDir, documents, options?)`

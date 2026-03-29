@@ -1,49 +1,66 @@
 ---
 name: indexbind
-description: Use when an agent needs to install or use indexbind through its CLI or programming APIs in Node, browsers, Web Workers, or Cloudflare Workers. This skill helps choose the right package, artifact, and entrypoint, and links to the live markdown docs for details.
+description: Use when an agent needs to install or use indexbind from Node, browsers, Web Workers, or Cloudflare Workers. This skill helps choose the right package, CLI, artifact, and entrypoint, and points to the live markdown docs for details.
 ---
 
 # Indexbind
 
-Use this skill when the task is about **using** `indexbind` from a host application or environment.
+Use this skill when the task is about using `indexbind` from a host application or environment.
 
 ## Install
 
-For the JavaScript APIs:
+Install the package:
 
 ```bash
 npm install indexbind
 ```
 
-For the current CLI:
+Optional global install when the goal is using `indexbind` as a shell command from arbitrary directories:
 
-- the CLI lives in the Rust `indexbind-build` crate
-- it is not installed by `npm install indexbind`
-- use it only when a Rust toolchain is available and the environment explicitly has the CLI available
-- if a task does not require the CLI specifically, prefer the programmatic APIs from `indexbind/build`
+```bash
+npm install -g indexbind
+```
 
-CLI docs:
-- `https://indexbind.jolestar.workers.dev/reference/cli.md`
+Then use either:
 
-General install and platform notes:
+- `npx indexbind ...` for shell-driven build, inspect, and benchmark workflows
+- `import ... from 'indexbind'` or `indexbind/build` for programmatic usage
+
+Platform notes:
+- native prebuilds exist for macOS arm64, macOS x64, and Linux x64 (glibc)
+- Windows usage should go through WSL
+
+Install and packaging docs:
 - `https://indexbind.jolestar.workers.dev/guides/getting-started.md`
 - `https://indexbind.jolestar.workers.dev/reference/packaging.md`
 
 ## Choose the right interface
 
-- Need local Node querying over a built artifact:
+- Index a local docs folder or local knowledge-base directory from the shell:
+  use `npx indexbind ...`
+- Local Node querying over a built SQLite artifact:
   use `indexbind`
-- Need to build or update indexes from code:
+- Programmatic build, incremental cache update, inspect, or benchmark:
   use `indexbind/build`
-- Need browser or worker querying over a canonical bundle:
+- Mixed local knowledge bases that need host-defined document classification, metadata, or directory weighting:
+  normalize documents in the host first, then pass them to `indexbind/build`
+- Browser or standard worker querying over a canonical bundle:
   use `indexbind/web`
-- Need Cloudflare Worker querying:
+- Cloudflare Worker querying:
   use `indexbind/cloudflare`
-- Need shell-driven index construction or inspection:
-  use the `indexbind-build` CLI if that Rust binary is available in the environment
+- Shell-driven build/update/export/inspect flows:
+  use `npx indexbind ...`
 
-## Artifact choice
+API docs:
+- `https://indexbind.jolestar.workers.dev/reference/api.md`
+- `https://indexbind.jolestar.workers.dev/reference/cli.md`
 
+## Choose the artifact
+
+- Local directory indexing for later Node queries:
+  build a native SQLite artifact
+- Local directory indexing for browser or worker delivery:
+  build a canonical bundle
 - Node runtime:
   use a native SQLite artifact
 - Browser, Web Worker, Cloudflare Worker:
@@ -55,37 +72,43 @@ Concepts:
 - `https://indexbind.jolestar.workers.dev/concepts/runtime-model.md`
 - `https://indexbind.jolestar.workers.dev/concepts/canonical-bundles.md`
 
-## CLI shape
+## Common commands
 
-When the Rust CLI binary is available, the command surface is:
+Typical CLI commands:
 
-- `indexbind-build build ...`
-- `indexbind-build build-bundle ...`
-- `indexbind-build update-cache ...`
-- `indexbind-build export-artifact ...`
-- `indexbind-build export-bundle ...`
-- `indexbind-build inspect ...`
-- `indexbind-build benchmark ...`
+- `npx indexbind build ./docs ./index.sqlite`
+- `npx indexbind build-bundle ./docs ./index.bundle`
+- `npx indexbind update-cache ./docs ./.indexbind-cache.sqlite --git-diff`
+- `npx indexbind build <input-dir> <output-file>`
+- `npx indexbind build-bundle <input-dir> <output-dir>`
+- `npx indexbind update-cache <input-dir> <cache-file> [--git-diff] [--git-base <rev>]`
+- `npx indexbind export-artifact <cache-file> <output-file>`
+- `npx indexbind export-bundle <cache-file> <output-dir>`
+- `npx indexbind inspect <artifact-file>`
+- `npx indexbind benchmark <artifact-file> <queries-json>`
 
-Use the CLI when the host workflow is shell-driven or file-system driven. Otherwise prefer `indexbind/build`.
+Use `indexbind/build` instead when the host already has documents in memory or wants tighter control from code.
 
-Docs:
-- `https://indexbind.jolestar.workers.dev/reference/cli.md`
-
-## Programming interfaces
+## Common APIs
 
 Use these APIs when the host already has documents or wants tighter control:
 
 - `openIndex(...)` from `indexbind`
+- `buildFromDirectory(...)` from `indexbind/build`
 - `buildCanonicalBundle(...)` from `indexbind/build`
+- `buildCanonicalBundleFromDirectory(...)` from `indexbind/build`
 - `updateBuildCache(...)` from `indexbind/build`
+- `updateBuildCacheFromDirectory(...)` from `indexbind/build`
 - `exportArtifactFromBuildCache(...)` from `indexbind/build`
 - `exportCanonicalBundleFromBuildCache(...)` from `indexbind/build`
+- `inspectArtifact(...)` from `indexbind/build`
+- `benchmarkArtifact(...)` from `indexbind/build`
 - `openWebIndex(...)` from `indexbind/web`
 - `openWebIndex(...)` from `indexbind/cloudflare`
 
 Docs:
 - `https://indexbind.jolestar.workers.dev/reference/api.md`
+- `https://indexbind.jolestar.workers.dev/guides/adoption-examples.md`
 
 ## Cloudflare rule
 
@@ -97,21 +120,6 @@ Inside Cloudflare Workers:
 
 Docs:
 - `https://indexbind.jolestar.workers.dev/guides/web-and-cloudflare.md`
-- `https://indexbind.jolestar.workers.dev/reference/api.md`
-
-## Search defaults
-
-Reasonable starting point:
-
-- `hybrid: true`
-- `topK: 10`
-- reranker:
-  `embedding-v1` with `candidatePoolSize: 25`
-
-Only add metadata filtering or score adjustment when the host app has a clear product rule for them.
-
-Docs:
-- `https://indexbind.jolestar.workers.dev/guides/search-quality-controls.md`
 - `https://indexbind.jolestar.workers.dev/reference/api.md`
 
 ## Read in this order when unsure

@@ -88,6 +88,68 @@ This shape works well when the host already owns:
 
 This is also a good fit when the blog or publishing system wants search to be one build output rather than a separate search service.
 
+## Custom Index Builder for a Mixed Local Knowledge Base
+
+Use this shape when the host application wants to decide exactly which directories to scan, how to classify documents, and which metadata or weighting rules should be written into the index.
+
+Typical flow:
+
+1. walk the host-specific content roots
+2. normalize each markdown file into a `BuildDocument`
+3. infer metadata such as source root, content kind, visibility, or directory weight
+4. pass the normalized documents into `indexbind/build`
+
+```ts
+import { buildCanonicalBundle } from 'indexbind/build';
+
+const documents = [
+  {
+    docId: 'public/post-a/README.md',
+    sourcePath: '/workspace/public/post-a/README.md',
+    relativePath: 'public/post-a/README.md',
+    canonicalUrl: 'https://example.com/post-a/',
+    title: 'Post A',
+    summary: 'Host-defined summary for workspace search.',
+    content: rawMarkdown,
+    metadata: {
+      source_root: 'public',
+      content_kind: 'public_post',
+      is_default_searchable: true,
+      directory_weight: 1.0,
+    },
+  },
+  {
+    docId: 'research/notes/layer2.md',
+    sourcePath: '/workspace/research/notes/layer2.md',
+    relativePath: 'research/notes/layer2.md',
+    title: 'Layer2 Notes',
+    content: rawResearchMarkdown,
+    metadata: {
+      source_root: 'research',
+      content_kind: 'research',
+      is_default_searchable: true,
+      directory_weight: 0.92,
+    },
+  },
+];
+
+await buildCanonicalBundle('./dist/workspace.bundle', documents, {
+  embeddingBackend: 'model2vec',
+  sourceRootId: 'workspace',
+  sourceRootPath: process.cwd(),
+});
+```
+
+This shape works well when the host wants to own:
+
+- multi-root directory selection
+- frontmatter parsing and custom title or summary rules
+- content classification such as `public_post`, `draft`, `research`, or `archive_doc`
+- metadata-driven ranking hints such as directory weights or visibility flags
+- separate search profiles such as default vs exhaustive search
+
+This is close to how the `workspace` project uses `indexbind`: the host normalizes heterogeneous content first, then hands a controlled document set into `indexbind/build`.
+
 ## Local Knowledge Base or Agent Workspace
 
 Use this shape when documents change repeatedly and the host wants to trigger indexing incrementally.
@@ -121,6 +183,7 @@ This shape fits:
 
 - Prefer the docs-site pattern when the runtime target is browser or worker first.
 - Prefer the publishing pattern when the host already has a structured content pipeline.
+- Prefer the custom-builder pattern when the host needs to classify mixed local content before indexing.
 - Prefer the local knowledge-base pattern when incremental rebuilds and local Node queries matter more than browser distribution.
 
 If you need the full decision frame, go back to [Choosing indexbind](./choosing-indexbind.md). If you want indicative local measurements and current in-house usage notes, see [Benchmarks and Case Studies](./benchmarks-and-case-studies.md).
