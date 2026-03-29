@@ -54,4 +54,10 @@ After deploy:
 curl 'https://<your-worker-host>/api/search?q=rust%20guide'
 ```
 
+You can also compare against the direct same-origin bundle path:
+
+```bash
+curl 'https://<your-worker-host>/api/search?q=rust%20guide&mode=direct'
+```
+
 If the Worker still fails to bootstrap wasm, the JSON response includes the original stack instead of only flattening to `Invalid URL string`.
