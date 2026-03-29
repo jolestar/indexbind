@@ -7,28 +7,28 @@ summary: Commands for building, inspecting, and benchmarking indexbind artifacts
 
 # CLI
 
-Current CLI lives in the Rust `indexbind-build` crate.
+Install the npm package, then run the public CLI through `npx indexbind ...` or your package manager's local bin shim.
 
 Main commands:
 
-- `cargo run -p indexbind-build -- build <input-dir> <output-file> [hashing|<model-id>]`
-- `cargo run -p indexbind-build -- build-bundle <input-dir> <output-dir> [hashing|<model-id>]`
-- `cargo run -p indexbind-build -- update-cache <input-dir> <cache-file> [hashing|<model-id>] [--git-diff] [--git-base <rev>]`
-- `cargo run -p indexbind-build -- export-artifact <cache-file> <output-file>`
-- `cargo run -p indexbind-build -- export-bundle <cache-file> <output-dir>`
-- `cargo run -p indexbind-build -- inspect <artifact-file>`
-- `cargo run -p indexbind-build -- benchmark <artifact-file> <queries-json>`
+- `npx indexbind build <input-dir> <output-file> [hashing|<model-id>]`
+- `npx indexbind build-bundle <input-dir> <output-dir> [hashing|<model-id>]`
+- `npx indexbind update-cache <input-dir> <cache-file> [hashing|<model-id>] [--git-diff] [--git-base <rev>]`
+- `npx indexbind export-artifact <cache-file> <output-file>`
+- `npx indexbind export-bundle <cache-file> <output-dir>`
+- `npx indexbind inspect <artifact-file>`
+- `npx indexbind benchmark <artifact-file> <queries-json>`
 
 Examples:
 
 ```bash
-cargo run -p indexbind-build -- build ./docs ./index.sqlite
-cargo run -p indexbind-build -- build-bundle ./docs ./index.bundle
-cargo run -p indexbind-build -- update-cache ./docs ./.indexbind-cache.sqlite --git-diff
-cargo run -p indexbind-build -- export-artifact ./.indexbind-cache.sqlite ./index.sqlite
-cargo run -p indexbind-build -- export-bundle ./.indexbind-cache.sqlite ./index.bundle
-cargo run -p indexbind-build -- inspect ./index.sqlite
-cargo run -p indexbind-build -- benchmark ./index.sqlite fixtures/benchmark/basic/queries.json
+npx indexbind build ./docs ./index.sqlite
+npx indexbind build-bundle ./docs ./index.bundle
+npx indexbind update-cache ./docs ./.indexbind-cache.sqlite --git-diff
+npx indexbind export-artifact ./.indexbind-cache.sqlite ./index.sqlite
+npx indexbind export-bundle ./.indexbind-cache.sqlite ./index.bundle
+npx indexbind inspect ./index.sqlite
+npx indexbind benchmark ./index.sqlite fixtures/benchmark/basic/queries.json
 ```
 
 Embedding backend selection:
@@ -56,8 +56,10 @@ One simple local hook pattern is updating the cache after branch changes:
 #!/usr/bin/env bash
 set -euo pipefail
 
-cargo run -p indexbind-build -- update-cache ./docs ./.indexbind-cache.sqlite --git-diff
-cargo run -p indexbind-build -- export-artifact ./.indexbind-cache.sqlite ./index.sqlite
+npx indexbind update-cache ./docs ./.indexbind-cache.sqlite --git-diff
+npx indexbind export-artifact ./.indexbind-cache.sqlite ./index.sqlite
 ```
 
 This is only an adapter example. The cache logic still lives in the shared incremental engine, so the same flow can also be called from agent scripts, task runners, or a file watcher.
+
+The original Rust `indexbind-build` binary remains available for Rust-native environments and contributor workflows.

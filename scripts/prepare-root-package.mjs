@@ -24,6 +24,7 @@ const publishPackageJson = {
   type: packageJson.type,
   main: packageJson.main,
   types: packageJson.types,
+  bin: packageJson.bin,
   exports: packageJson.exports,
   repository: packageJson.repository,
   homepage: packageJson.homepage,
@@ -41,5 +42,7 @@ fs.writeFileSync(
   path.join(outputDir, 'package.json'),
   `${JSON.stringify(publishPackageJson, null, 2)}\n`,
 );
+
+fs.chmodSync(path.join(outputDir, 'dist', 'cli.js'), 0o755);
 
 console.log(`Prepared root package at ${outputDir}`);

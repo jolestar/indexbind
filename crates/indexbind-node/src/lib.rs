@@ -1,3 +1,7 @@
+use indexbind_build::{
+    build_canonical_from_directory, build_from_directory, update_cache_from_directory_with_mode,
+    DirectoryUpdateMode,
+};
 use indexbind_core::{
     build_canonical_artifact, export_artifact_from_build_cache, export_canonical_from_build_cache,
     update_build_cache, BuildArtifactOptions, BuildCacheUpdate, BuildStats, CanonicalBuildStats,
@@ -6,8 +10,10 @@ use indexbind_core::{
 };
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -111,6 +117,31 @@ pub struct NodeIncrementalBuildStats {
     pub removed_document_count: i64,
     pub active_document_count: i64,
     pub active_chunk_count: i64,
+}
+
+#[napi(object)]
+#[derive(Clone)]
+pub struct NodeDirectoryUpdateMode {
+    pub mode: Option<String>,
+    pub base_revision: Option<String>,
+}
+
+#[napi(object)]
+pub struct NodeBenchmarkCaseResult {
+    pub name: String,
+    pub query: String,
+    pub expected_top_hit: String,
+    pub actual_top_hit: Option<String>,
+    pub passed: bool,
+}
+
+#[napi(object)]
+pub struct NodeBenchmarkSummary {
+    pub fixture: String,
+    pub total: i64,
+    pub passed: i64,
+    pub failed: i64,
+    pub results: Vec<NodeBenchmarkCaseResult>,
 }
 
 #[napi]
@@ -230,6 +261,36 @@ pub fn build_canonical_bundle(
 }
 
 #[napi]
+pub fn build_artifact_from_directory(
+    input_dir: String,
+    output_path: String,
+    options: Option<NodeBuildOptions>,
+) -> napi::Result<NodeBuildStats> {
+    let stats = build_from_directory(
+        &PathBuf::from(input_dir),
+        &PathBuf::from(output_path),
+        map_build_options(options),
+    )
+    .map_err(map_error)?;
+    Ok(map_plain_build_stats(stats))
+}
+
+#[napi]
+pub fn build_canonical_bundle_from_directory(
+    input_dir: String,
+    output_dir: String,
+    options: Option<NodeBuildOptions>,
+) -> napi::Result<NodeCanonicalBuildStats> {
+    let stats = build_canonical_from_directory(
+        &PathBuf::from(input_dir),
+        &PathBuf::from(output_dir),
+        map_build_options(options),
+    )
+    .map_err(map_error)?;
+    Ok(map_build_stats(stats))
+}
+
+#[napi]
 pub fn update_build_cache_from_documents(
     cache_path: String,
     documents: Vec<NodeBuildDocument>,
@@ -249,6 +310,34 @@ pub fn update_build_cache_from_documents(
             replace_all: false,
         },
         &build_options,
+    )
+    .map_err(map_error)?;
+    Ok(map_incremental_build_stats(stats))
+}
+
+#[napi]
+pub fn update_build_cache_from_directory(
+    input_dir: String,
+    cache_path: String,
+    options: Option<NodeBuildOptions>,
+    update_mode: Option<NodeDirectoryUpdateMode>,
+) -> napi::Result<NodeIncrementalBuildStats> {
+    let mode = match update_mode.as_ref().and_then(|value| value.mode.as_deref()) {
+        Some(mode) if mode == "git-diff" => DirectoryUpdateMode::GitDiff {
+            base_revision: update_mode.and_then(|value| value.base_revision),
+        },
+        Some(mode) if mode != "full-scan" => {
+            return Err(Error::from_reason(format!(
+                "unsupported directory update mode: {mode}"
+            )))
+        }
+        _ => DirectoryUpdateMode::FullScan,
+    };
+    let stats = update_cache_from_directory_with_mode(
+        &PathBuf::from(input_dir),
+        &PathBuf::from(cache_path),
+        map_build_options(options),
+        mode,
     )
     .map_err(map_error)?;
     Ok(map_incremental_build_stats(stats))
@@ -276,6 +365,56 @@ pub fn export_canonical_bundle_from_cache(
     Ok(map_build_stats(stats))
 }
 
+#[napi]
+pub fn inspect_artifact(artifact_path: String) -> napi::Result<NodeArtifactInfo> {
+    let retriever = Retriever::open(&PathBuf::from(artifact_path)).map_err(map_error)?;
+    Ok(map_artifact_info(retriever.info()))
+}
+
+#[napi]
+pub fn benchmark_artifact(
+    artifact_path: String,
+    queries_json_path: String,
+) -> napi::Result<NodeBenchmarkSummary> {
+    let payload = fs::read_to_string(queries_json_path).map_err(map_error)?;
+    let fixture: BenchmarkFixture = serde_json::from_str(&payload).map_err(map_serde_error)?;
+    let mut retriever = Retriever::open(&PathBuf::from(artifact_path)).map_err(map_error)?;
+
+    let mut passed = 0usize;
+    let mut results = Vec::new();
+    for case in fixture.queries {
+        let hits = retriever
+            .search(
+                &case.query,
+                SearchOptions {
+                    top_k: case.top_k.unwrap_or(5),
+                    ..SearchOptions::default()
+                },
+            )
+            .map_err(map_error)?;
+        let actual_top_hit = hits.first().map(|hit| hit.relative_path.clone());
+        let success = actual_top_hit.as_deref() == Some(case.expected_top_hit.as_str());
+        if success {
+            passed += 1;
+        }
+        results.push(NodeBenchmarkCaseResult {
+            name: case.name,
+            query: case.query,
+            expected_top_hit: case.expected_top_hit,
+            actual_top_hit,
+            passed: success,
+        });
+    }
+
+    Ok(NodeBenchmarkSummary {
+        fixture: fixture.name,
+        total: results.len() as i64,
+        passed: passed as i64,
+        failed: results.len().saturating_sub(passed) as i64,
+        results,
+    })
+}
+
 fn map_hit(hit: DocumentHit) -> NodeDocumentHit {
     NodeDocumentHit {
         doc_id: hit.doc_id,
@@ -293,6 +432,21 @@ fn map_hit(hit: DocumentHit) -> NodeDocumentHit {
             char_end: hit.best_match.char_end as u32,
             score: hit.best_match.score as f64,
         },
+    }
+}
+
+fn map_artifact_info(info: &indexbind_core::ArtifactInfo) -> NodeArtifactInfo {
+    let embedding_backend =
+        serde_json::to_string(&info.embedding_backend).unwrap_or_else(|_| "{}".to_string());
+    let source_root = serde_json::to_string(&info.source_root).unwrap_or_else(|_| "{}".to_string());
+    NodeArtifactInfo {
+        schema_version: info.schema_version.clone(),
+        built_at: info.built_at.clone(),
+        embedding_backend,
+        lexical_tokenizer: info.lexical_tokenizer.clone(),
+        source_root,
+        document_count: info.document_count as i64,
+        chunk_count: info.chunk_count as i64,
     }
 }
 
@@ -391,4 +545,18 @@ fn map_error(error: impl std::fmt::Display) -> Error {
 
 fn map_serde_error(error: serde_json::Error) -> Error {
     Error::from_reason(error.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+struct BenchmarkFixture {
+    name: String,
+    queries: Vec<BenchmarkQuery>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BenchmarkQuery {
+    name: String,
+    query: String,
+    expected_top_hit: String,
+    top_k: Option<usize>,
 }

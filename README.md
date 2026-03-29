@@ -61,7 +61,7 @@ npm run build:native:release
 1. Build a native SQLite artifact for Node:
 
 ```bash
-cargo run -p indexbind-build -- build ./docs ./index.sqlite
+npx indexbind build ./docs ./index.sqlite
 ```
 
 2. Query it from Node:
@@ -76,15 +76,17 @@ const hits = await index.search('rust guide');
 3. Build a canonical bundle for browsers and Workers:
 
 ```bash
-cargo run -p indexbind-build -- build-bundle ./docs ./index.bundle
+npx indexbind build-bundle ./docs ./index.bundle
 ```
 
 4. Or keep a mutable build cache and export fresh artifacts from it:
 
 ```bash
-cargo run -p indexbind-build -- update-cache ./docs ./.indexbind-cache.sqlite --git-diff
-cargo run -p indexbind-build -- export-artifact ./.indexbind-cache.sqlite ./index.sqlite
+npx indexbind update-cache ./docs ./.indexbind-cache.sqlite --git-diff
+npx indexbind export-artifact ./.indexbind-cache.sqlite ./index.sqlite
 ```
+
+The npm package now includes the public CLI. Rust users can still run the original `indexbind-build` binary directly.
 
 ## Artifact Paths
 

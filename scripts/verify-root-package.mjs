@@ -11,6 +11,8 @@ const requiredFiles = [
   'README.md',
   'LICENSE',
   'CHANGELOG.md',
+  'dist/cli.js',
+  'dist/cli.d.ts',
   'dist/index.js',
   'dist/index.d.ts',
   'dist/build.js',
@@ -33,6 +35,11 @@ const requiredFiles = [
   'dist/wasm-bundler/indexbind_wasm_bg.wasm',
   'dist/wasm-bundler/indexbind_wasm_bg.wasm.d.ts',
 ];
+
+const packageJson = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
+if (packageJson.bin?.indexbind !== './dist/cli.js') {
+  throw new Error('Prepared root package must expose bin.indexbind as ./dist/cli.js');
+}
 
 for (const relativePath of requiredFiles) {
   const absolutePath = path.join(packageDir, relativePath);
@@ -57,6 +64,11 @@ for (const relativePath of collectFiles(path.join(packageDir, 'dist'))) {
       );
     }
   }
+}
+
+const cliContents = fs.readFileSync(path.join(packageDir, 'dist', 'cli.js'), 'utf8');
+if (!cliContents.startsWith('#!/usr/bin/env node')) {
+  throw new Error('Prepared root package CLI is missing a node shebang');
 }
 
 console.log(`Verified prepared root package at ${packageDir}`);

@@ -960,6 +960,7 @@ dependencies = [
 name = "indexbind-node"
 version = "0.3.3"
 dependencies = [
+ "indexbind-build",
  "indexbind-core",
  "napi",
  "napi-build",

@@ -8,7 +8,8 @@ if (!targetKey) {
 }
 
 const target = getTargetByKey(targetKey);
-const version = process.env.RELEASE_VERSION ?? '0.1.0';
+const rootPackageJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
+const version = process.env.RELEASE_VERSION ?? rootPackageJson.version;
 const sourceBinary = process.env.NATIVE_BINARY
   ? path.resolve(process.env.NATIVE_BINARY)
   : path.resolve('native', target.artifactName);
