@@ -107,6 +107,11 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.verify.outputs.release_version }}
 
+      - name: Verify root package contents
+        run: npm run release:verify-root-package
+        env:
+          RELEASE_ROOT_DIR: ${{ github.workspace }}/release/npm/indexbind
+
       - name: Build smoke test artifact
         run: cargo run -p indexbind-build -- build fixtures/benchmark/basic/docs ${{ runner.temp }}/indexbind-smoke.sqlite hashing
 
@@ -168,6 +173,11 @@ jobs:
         run: npm run release:prepare-root
         env:
           RELEASE_VERSION: ${{ needs.verify.outputs.release_version }}
+
+      - name: Verify root package contents
+        run: npm run release:verify-root-package
+        env:
+          RELEASE_ROOT_DIR: ${{ github.workspace }}/release/npm/indexbind
 
       - name: Upload root package
         uses: actions/upload-artifact@v6
