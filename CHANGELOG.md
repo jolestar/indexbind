@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1
+
+- Fixed the release workflow after the Rust CLI removal by switching the release smoke artifact build step to the npm-first `indexbind` CLI.
+- Updated package and workspace versions to `0.5.1` so the hotfix can publish cleanly after the failed `0.5.0` release attempt.
+
 ## 0.5.0
 
 - Retired the Rust `indexbind-build` binary and unified all supported CLI workflows on the npm-first `indexbind` command.
