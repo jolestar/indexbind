@@ -110,7 +110,7 @@ const documents = [
     canonicalUrl: 'https://example.com/post-a/',
     title: 'Post A',
     summary: 'Host-defined summary for workspace search.',
-    content: rawMarkdown,
+    content: '# Post A\n\nHost-controlled markdown content for the public post.',
     metadata: {
       source_root: 'public',
       content_kind: 'public_post',
@@ -123,7 +123,7 @@ const documents = [
     sourcePath: '/workspace/research/notes/layer2.md',
     relativePath: 'research/notes/layer2.md',
     title: 'Layer2 Notes',
-    content: rawResearchMarkdown,
+    content: '# Layer2 Notes\n\nHost-controlled markdown content for research search.',
     metadata: {
       source_root: 'research',
       content_kind: 'research',

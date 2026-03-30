@@ -23,7 +23,8 @@ npm install -g indexbind
 
 Then use either:
 
-- `npx indexbind ...` for shell-driven build, inspect, and benchmark workflows
+- `npx indexbind ...` for local installs and per-project workflows
+- `indexbind ...` after a global install
 - `import ... from 'indexbind'` or `indexbind/build` for programmatic usage
 
 Platform notes:
