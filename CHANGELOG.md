@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- Retired the Rust `indexbind-build` binary and unified all supported CLI workflows on the npm-first `indexbind` command.
+- Made explicit CLI help paths succeed with exit code `0` for both the top-level command and subcommands, and added dedicated CLI smoke coverage in CI.
+- Replaced the old boolean `hybrid` search flag with explicit retrieval `mode: 'hybrid' | 'vector'` across the Node API, CLI, native bridge, wasm/web runtime, docs, and packaged-install smoke tests.
+
 ## 0.4.0
 
 - Added an npm-first `indexbind` CLI so `npm install indexbind` can drive `build`, `build-bundle`, `update-cache`, `export-*`, `inspect`, and `benchmark` flows through `npx indexbind ...`.
