@@ -137,7 +137,10 @@ function capture(command, args, cwd) {
   const result = spawnSync(command, args, {
     cwd,
     stdio: ['ignore', 'pipe', 'inherit'],
-    env: process.env,
+    env: {
+      ...process.env,
+      ...(command === npmCommand ? { NPM_CONFIG_LOGLEVEL: 'silent' } : {}),
+    },
     encoding: 'utf8',
   });
 

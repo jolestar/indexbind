@@ -277,6 +277,10 @@ function parseSearchCommandArgs(args: string[]): {
 
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index];
+    if (value === '--') {
+      positional.push(...args.slice(index + 1));
+      break;
+    }
     switch (value) {
       case '--top-k':
         topK = parseIntegerFlag('--top-k', args[index + 1]);
