@@ -9,8 +9,6 @@
   },
   "showDate": true,
   "showSummary": true,
-  "theme": "atlas",
-  "template": "document",
   "socialLinks": [
     { "icon": "github", "label": "GitHub", "href": "https://github.com/jolestar/indexbind" },
     { "icon": "npm", "label": "npm", "href": "https://www.npmjs.com/package/indexbind" }
@@ -18,5 +16,14 @@
   "editLink": {
     "baseUrl": "https://github.com/jolestar/indexbind/edit/main/docs/site/"
   },
-  "showHomeIndex": false
+  "showHomeIndex": false,
+  "search": {
+    "topK": 8,
+    "mode": "hybrid",
+    "minScore": 0.02,
+    "reranker": {
+      "kind": "embedding-v1",
+      "candidatePoolSize": 20
+    }
+  }
 }

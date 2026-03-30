@@ -146,5 +146,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build docs index
-        run: npm run docs:index
+      - name: Build docs search bundle
+        run: npm run docs:search

@@ -99,7 +99,15 @@ npm run docs:dev
 <!-- INDEX:START -->
 
 - [Guides](./guides/)
+  <!-- mdorigin:index kind=directory -->
+
 - [Concepts](./concepts/)
+  <!-- mdorigin:index kind=directory -->
+
 - [Reference](./reference/)
+  <!-- mdorigin:index kind=directory -->
+
+- [skills](./skills/)
+  <!-- mdorigin:index kind=directory -->
 
 <!-- INDEX:END -->

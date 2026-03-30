@@ -64,8 +64,10 @@
     "build": "npm run build:cli && npm run build:wasm",
     "build:bundle": "npm run build:cli && node dist/cli.js build-bundle",
     "docs:dev": "npx --no-install mdorigin dev --root docs/site",
+    "docs:dev:search": "npm run docs:search && npx --no-install mdorigin dev --root docs/site --search dist/search",
     "docs:index": "npx --no-install mdorigin build index --root docs/site",
-    "docs:build:cloudflare": "npm run docs:index && npx --no-install mdorigin build cloudflare --root docs/site",
+    "docs:search": "npm run docs:index && npx --no-install mdorigin build search --root docs/site --out dist/search",
+    "docs:build:cloudflare": "npm run docs:search && npx --no-install mdorigin build cloudflare --root docs/site --out dist/cloudflare --search dist/search",
     "docs:init:cloudflare": "npx --no-install mdorigin init cloudflare --dir . --name indexbind --force",
     "docs:deploy": "npm run docs:build:cloudflare && npm run docs:init:cloudflare && wrangler deploy",
     "inspect:artifact": "npm run build:cli && node dist/cli.js inspect",
@@ -89,7 +91,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^24.5.2",
-    "mdorigin": "^0.1.2",
+    "mdorigin": "^0.4.0",
     "typescript": "^5.9.2",
     "wrangler": "^4.76.0"
   },
