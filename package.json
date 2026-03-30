@@ -74,6 +74,7 @@
     "smoke:web-worker": "node scripts/smoke-web-worker.mjs",
     "smoke:web-browser": "node scripts/smoke-web-browser.mjs",
     "smoke:cloudflare-worker": "node scripts/smoke-cloudflare-worker.mjs",
+    "smoke:cli": "node scripts/smoke-cli.mjs",
     "testcase:cloudflare-worker:prepare": "npm run build:cli && mkdir -p fixtures/manual/cloudflare-worker-issue-18/public/search && node dist/cli.js build-bundle fixtures/benchmark/basic/docs fixtures/manual/cloudflare-worker-issue-18/public/search/index.bundle hashing",
     "testcase:cloudflare-worker:dev": "npm run build && npm run testcase:cloudflare-worker:prepare && wrangler dev --config fixtures/manual/cloudflare-worker-issue-18/wrangler.jsonc",
     "check": "tsc --noEmit -p tsconfig.json && cargo check --workspace",

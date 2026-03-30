@@ -110,6 +110,9 @@ jobs:
       - name: Build package
         run: npm run build
 
+      - name: CLI smoke test
+        run: npm run smoke:cli
+
       - name: Web bundle smoke test
         run: npm run smoke:web-bundle
 

@@ -70,6 +70,10 @@ async function main(): Promise<void> {
 }
 
 async function buildCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(buildUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const [inputDir, outputPath, backend] = filteredArgs;
   if (!inputDir || !outputPath || filteredArgs.length > 3) {
@@ -85,6 +89,10 @@ async function buildCommand(args: string[]): Promise<void> {
 }
 
 async function buildBundleCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(buildBundleUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const [inputDir, outputDir, backend] = filteredArgs;
   if (!inputDir || !outputDir || filteredArgs.length > 3) {
@@ -104,6 +112,10 @@ async function buildBundleCommand(args: string[]): Promise<void> {
 }
 
 async function updateCacheCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(updateCacheUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const positional: string[] = [];
   let useGitDiff = false;
@@ -162,6 +174,10 @@ async function updateCacheCommand(args: string[]): Promise<void> {
 }
 
 async function exportArtifactCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(exportArtifactUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const [cachePath, outputPath] = filteredArgs;
   if (!cachePath || !outputPath || filteredArgs.length !== 2) {
@@ -176,6 +192,10 @@ async function exportArtifactCommand(args: string[]): Promise<void> {
 }
 
 async function exportBundleCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(exportBundleUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const [cachePath, outputDir] = filteredArgs;
   if (!cachePath || !outputDir || filteredArgs.length !== 2) {
@@ -190,6 +210,10 @@ async function exportBundleCommand(args: string[]): Promise<void> {
 }
 
 async function inspectCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(inspectUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const [artifactPath] = filteredArgs;
   if (!artifactPath || filteredArgs.length !== 1) {
@@ -212,6 +236,10 @@ async function inspectCommand(args: string[]): Promise<void> {
 }
 
 async function benchmarkCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(benchmarkUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const [artifactPath, queriesJsonPath] = filteredArgs;
   if (!artifactPath || !queriesJsonPath || filteredArgs.length !== 2) {
@@ -233,6 +261,10 @@ async function benchmarkCommand(args: string[]): Promise<void> {
 }
 
 async function searchCommand(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    printUsage(searchUsage());
+    return;
+  }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const { artifactPath, query, options } = parseSearchCommandArgs(filteredArgs);
   const index = await openIndex(artifactPath);
@@ -435,6 +467,18 @@ function extractOutputMode(args: string[]): { outputMode: OutputMode; args: stri
   return { outputMode, args: filteredArgs };
 }
 
+function wantsHelp(args: string[]): boolean {
+  for (const value of args) {
+    if (value === '--') {
+      return false;
+    }
+    if (value === '--help' || value === '-h') {
+      return true;
+    }
+  }
+  return false;
+}
+
 function emit(outputMode: OutputMode, jsonValue: unknown, textValue: string): void {
   if (outputMode === 'text') {
     console.log(textValue);
@@ -484,28 +528,56 @@ function formatSearchText(result: SearchEnvelope): string {
   return lines.join('\n');
 }
 
-function printUsage(): void {
-  console.log(usage());
+function printUsage(text: string = usage()): void {
+  console.log(text);
 }
 
 function usage(): string {
   return `usage:
-  indexbind build <input-dir> <output-file> [hashing|<model-id>] [--text]
-  indexbind build-bundle <input-dir> <output-dir> [hashing|<model-id>] [--text]
-  indexbind update-cache <input-dir> <cache-file> [hashing|<model-id>] [--git-diff] [--git-base <rev>] [--text]
-  indexbind export-artifact <cache-file> <output-file> [--text]
-  indexbind export-bundle <cache-file> <output-dir> [--text]
-  indexbind inspect <artifact-file> [--text]
-  indexbind benchmark <artifact-file> <queries-json> [--text]
-  indexbind search <artifact-file> <query> [--top-k <n>] [--hybrid true|false] [--reranker <kind>] [--candidate-pool-size <n>] [--relative-path-prefix <prefix>] [--metadata key=value] [--score-adjust-metadata-multiplier <field>] [--min-score <float>] [--text]
+  ${buildUsage()}
+  ${buildBundleUsage()}
+  ${updateCacheUsage()}
+  ${exportArtifactUsage()}
+  ${exportBundleUsage()}
+  ${inspectUsage()}
+  ${benchmarkUsage()}
+  ${searchUsage()}
 
 By default, commands print JSON. Add \`--text\` for human-friendly output.
 
 For backward compatibility, \`indexbind <input-dir> <output-file> [hashing|<model-id>] [--text]\` still works.`;
 }
 
+function buildUsage(): string {
+  return 'indexbind build <input-dir> <output-file> [hashing|<model-id>] [--text]';
+}
+
+function buildBundleUsage(): string {
+  return 'indexbind build-bundle <input-dir> <output-dir> [hashing|<model-id>] [--text]';
+}
+
+function updateCacheUsage(): string {
+  return 'indexbind update-cache <input-dir> <cache-file> [hashing|<model-id>] [--git-diff] [--git-base <rev>] [--text]';
+}
+
+function exportArtifactUsage(): string {
+  return 'indexbind export-artifact <cache-file> <output-file> [--text]';
+}
+
+function exportBundleUsage(): string {
+  return 'indexbind export-bundle <cache-file> <output-dir> [--text]';
+}
+
+function inspectUsage(): string {
+  return 'indexbind inspect <artifact-file> [--text]';
+}
+
+function benchmarkUsage(): string {
+  return 'indexbind benchmark <artifact-file> <queries-json> [--text]';
+}
+
 function searchUsage(): string {
-  return 'usage: indexbind search <artifact-file> <query> [--top-k <n>] [--hybrid true|false] [--reranker <kind>] [--candidate-pool-size <n>] [--relative-path-prefix <prefix>] [--metadata key=value] [--score-adjust-metadata-multiplier <field>] [--min-score <float>] [--text]';
+  return 'indexbind search <artifact-file> <query> [--top-k <n>] [--hybrid true|false] [--reranker <kind>] [--candidate-pool-size <n>] [--relative-path-prefix <prefix>] [--metadata key=value] [--score-adjust-metadata-multiplier <field>] [--min-score <float>] [--text]';
 }
 
 await main();
