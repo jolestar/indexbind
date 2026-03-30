@@ -103,6 +103,15 @@ You should see a hit shaped roughly like:
 
 Use the native SQLite artifact when your runtime is Node and you want the simplest local setup.
 
+You can also sanity-check the artifact from the CLI:
+
+```bash
+npx indexbind search ./index.sqlite "rust guide"
+npx indexbind search ./index.sqlite "rust guide" --text
+```
+
+CLI commands print JSON by default, which is useful for scripts and agents. Add `--text` for a shorter terminal summary.
+
 ## Build a Canonical Bundle
 
 The canonical bundle is the portable artifact for browsers and workers:
@@ -174,6 +183,7 @@ Inspect a native SQLite artifact:
 
 ```bash
 npx indexbind inspect ./index.sqlite
+npx indexbind inspect ./index.sqlite --text
 ```
 
 The Rust `indexbind-build` binary still exists for Rust-native workflows, but the npm package now ships the public `indexbind` CLI.

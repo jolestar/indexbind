@@ -16,7 +16,7 @@ Use this section for exact entrypoints and command shapes.
   2026-03-25 · Node, build, web, and Cloudflare entrypoints, plus the current search option surface.
 
 - [CLI](./cli.md)
-  2026-03-25 · Commands for building, inspecting, and benchmarking indexbind artifacts.
+  2026-03-25 · Commands for building, inspecting, searching, and benchmarking indexbind artifacts.
 
 - [Packaging](./packaging.md)
   2026-03-25 · npm package boundaries, native packages, wasm assets, and canonical bundle model files.

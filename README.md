@@ -73,6 +73,13 @@ const index = await openIndex('./index.sqlite');
 const hits = await index.search('rust guide');
 ```
 
+Or query it directly from the CLI:
+
+```bash
+npx indexbind search ./index.sqlite "rust guide"
+npx indexbind search ./index.sqlite "rust guide" --text
+```
+
 3. Build a canonical bundle for browsers and Workers:
 
 ```bash
@@ -87,6 +94,8 @@ npx indexbind export-artifact ./.indexbind-cache.sqlite ./index.sqlite
 ```
 
 The npm package now includes the public CLI. Rust users can still run the original `indexbind-build` binary directly.
+
+CLI commands print JSON by default. Add `--text` when you want scan-friendly terminal output.
 
 ## Artifact Paths
 

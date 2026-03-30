@@ -33,12 +33,35 @@ fs.writeFileSync(
 );
 
 const cliArtifactPath = path.join(tempDir, 'cli.sqlite');
-run(
+const buildOutput = capture(
   npmCommand,
   ['exec', '--', 'indexbind', 'build', docsDir, cliArtifactPath, 'hashing'],
   tempDir,
 );
-run(npmCommand, ['exec', '--', 'indexbind', 'inspect', cliArtifactPath], tempDir);
+const buildStats = JSON.parse(buildOutput);
+if (buildStats.documentCount !== 1 || buildStats.chunkCount < 1) {
+  throw new Error(`Unexpected build stats: ${buildOutput}`);
+}
+
+const inspectOutput = capture(
+  npmCommand,
+  ['exec', '--', 'indexbind', 'inspect', cliArtifactPath],
+  tempDir,
+);
+const inspectInfo = JSON.parse(inspectOutput);
+if (inspectInfo.documentCount !== 1) {
+  throw new Error(`Unexpected inspect output: ${inspectOutput}`);
+}
+
+const searchOutput = capture(
+  npmCommand,
+  ['exec', '--', 'indexbind', 'search', cliArtifactPath, 'rust guide', '--top-k', '3'],
+  tempDir,
+);
+const searchResult = JSON.parse(searchOutput);
+if (searchResult.hitCount !== 1 || searchResult.hits[0]?.relativePath !== 'rust.md') {
+  throw new Error(`Unexpected CLI search output: ${searchOutput}`);
+}
 
 const verifyScript = path.join(tempDir, 'verify.mjs');
 fs.writeFileSync(
@@ -108,4 +131,19 @@ function run(command, args, cwd) {
   if (result.status !== 0) {
     throw new Error(`Command failed: ${command} ${args.join(' ')}`);
   }
+}
+
+function capture(command, args, cwd) {
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio: ['ignore', 'pipe', 'inherit'],
+    env: process.env,
+    encoding: 'utf8',
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Command failed: ${command} ${args.join(' ')}`);
+  }
+
+  return result.stdout.trim();
 }
