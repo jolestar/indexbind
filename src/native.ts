@@ -225,6 +225,7 @@ export interface NativeModule {
     cachePath: string,
     documents: NativeBuildDocument[],
     removedRelativePaths?: string[],
+    replaceAll?: boolean,
     options?: NativeBuildOptions,
   ): NativeIncrementalBuildStats;
   collectBuildCacheUpdateFromDirectory(

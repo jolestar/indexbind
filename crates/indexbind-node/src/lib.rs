@@ -366,6 +366,7 @@ pub fn update_build_cache_from_documents(
     cache_path: String,
     documents: Vec<NodeBuildDocument>,
     removed_relative_paths: Option<Vec<String>>,
+    replace_all: Option<bool>,
     options: Option<NodeBuildOptions>,
 ) -> napi::Result<NodeIncrementalBuildStats> {
     let build_options = map_build_options(options);
@@ -378,7 +379,7 @@ pub fn update_build_cache_from_documents(
         BuildCacheUpdate {
             documents: normalized_documents,
             removed_relative_paths: removed_relative_paths.unwrap_or_default(),
-            replace_all: false,
+            replace_all: replace_all.unwrap_or(false),
         },
         &build_options,
     )

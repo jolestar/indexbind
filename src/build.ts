@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   loadNativeModule,
   type NativeArtifactInfo,
@@ -164,6 +165,7 @@ export async function updateBuildCache(
       cachePath,
       nativeDocuments,
       removedRelativePaths,
+      false,
       mapBuildOptions(options),
     ),
   );
@@ -204,6 +206,7 @@ export async function updateBuildCacheFromDirectory(
       cachePath,
       transformed.map(mapBuildDocument),
       removedRelativePaths,
+      update.replaceAll,
       mapBuildOptions(withSourceRootOptions(options, rootDir)),
     ),
   );
@@ -336,7 +339,7 @@ async function transformDocumentsWithConvention(
 }
 
 function resolveInputRoot(inputDir: string): string {
-  return inputDir;
+  return path.resolve(inputDir);
 }
 
 function withSourceRootOptions(
