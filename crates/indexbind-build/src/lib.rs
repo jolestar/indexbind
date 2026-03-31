@@ -678,10 +678,11 @@ Body
         fs::write(tempdir.path().join("nested/keep.md"), "# Keep\n\nBody\n").unwrap();
 
         let documents = read_documents(tempdir.path()).unwrap();
-        let relative_paths = documents
+        let mut relative_paths = documents
             .into_iter()
             .map(|document| document.relative_path)
             .collect::<Vec<_>>();
+        relative_paths.sort();
         assert_eq!(relative_paths, vec!["guide.md", "nested/keep.md"]);
     }
 

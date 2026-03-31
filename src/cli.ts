@@ -85,6 +85,7 @@ async function buildCommand(args: string[]): Promise<void> {
     buildUsage(),
     defaultArtifactPath,
   );
+  await assertInputDirectory(inputDir);
   await ensureParentDirectory(outputPath);
   const stats = await buildFromDirectory(inputDir, outputPath, buildOptions);
   emit(
@@ -104,6 +105,7 @@ async function buildBundleCommand(args: string[]): Promise<void> {
     buildBundleUsage(),
     defaultBundlePath,
   );
+  await assertInputDirectory(inputDir);
   await ensureParentDirectory(outputDir);
   const stats = await buildCanonicalBundleFromDirectory(
     inputDir,
@@ -160,6 +162,7 @@ async function updateCacheCommand(args: string[]): Promise<void> {
 
   const inputDir = positional[0] ?? '.';
   const cachePath = positional[1] ?? defaultCachePath(inputDir);
+  await assertInputDirectory(inputDir);
   await ensureParentDirectory(cachePath);
 
   const stats = await updateBuildCacheFromDirectory(
@@ -672,6 +675,18 @@ function defaultCachePath(inputDir: string): string {
 
 async function ensureParentDirectory(outputPath: string): Promise<void> {
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
+}
+
+async function assertInputDirectory(inputDir: string): Promise<void> {
+  let stats;
+  try {
+    stats = await fs.stat(inputDir);
+  } catch {
+    throw new Error(`input directory does not exist: ${inputDir}`);
+  }
+  if (!stats.isDirectory()) {
+    throw new Error(`input path is not a directory: ${inputDir}`);
+  }
 }
 
 await main();
