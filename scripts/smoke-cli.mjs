@@ -66,6 +66,30 @@ if (!apiHits[0] || apiHits[0].relativePath !== 'rust.md') {
   throw new Error(`Expected vector mode API search hit, got ${JSON.stringify(apiHits)}`);
 }
 
+const lexicalProfileIndex = await openIndex(artifactPath, { modeProfile: 'lexical' });
+const lexicalProfileHits = await lexicalProfileIndex.search('rust guide');
+if (!lexicalProfileHits[0] || lexicalProfileHits[0].relativePath !== 'rust.md') {
+  throw new Error(
+    `Expected lexical profile API search hit, got ${JSON.stringify(lexicalProfileHits)}`,
+  );
+}
+let sawLexicalProfileModeError = false;
+try {
+  await lexicalProfileIndex.search('rust guide', { mode: 'vector' });
+} catch (error) {
+  if (
+    error instanceof Error &&
+    error.message.includes('this index was opened with modeProfile: "lexical"')
+  ) {
+    sawLexicalProfileModeError = true;
+  } else {
+    throw error;
+  }
+}
+if (!sawLexicalProfileModeError) {
+  throw new Error('Expected lexical profile to reject vector mode');
+}
+
 let sawLegacyHybridError = false;
 try {
   await index.search('rust guide', { hybrid: true });

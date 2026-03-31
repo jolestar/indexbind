@@ -267,7 +267,9 @@ async function searchCommand(args: string[]): Promise<void> {
   }
   const { outputMode, args: filteredArgs } = extractOutputMode(args);
   const { artifactPath, query, options } = parseSearchCommandArgs(filteredArgs);
-  const index = await openIndex(artifactPath);
+  const index = await openIndex(artifactPath, {
+    modeProfile: options.mode === 'lexical' ? 'lexical' : 'hybrid',
+  });
   const hits = await index.search(query, options);
   const envelope: SearchEnvelope = {
     query,

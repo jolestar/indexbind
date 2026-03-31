@@ -68,6 +68,46 @@ console.log(JSON.stringify({
     ],
     repoRoot,
   );
+
+  run(
+    nodeCommand,
+    [
+      '--input-type=module',
+      '-e',
+      `
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { openWebIndex } from ${JSON.stringify(pathToFileUrl(path.join(repoRoot, 'dist/web.js')))};
+
+const bundleDir = ${JSON.stringify(testCase.bundleDir)};
+const requestedPaths = [];
+const index = await openWebIndex('https://bundle.invalid/index.bundle/', {
+  modeProfile: 'lexical',
+  fetch: async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    requestedPaths.push(url.pathname);
+    const relativePath = url.pathname.replace(/^\\/index\\.bundle\\//, '');
+    const filePath = path.join(bundleDir, relativePath);
+    const body = await fs.readFile(filePath);
+    return new Response(body);
+  },
+});
+const hits = await index.search('rust guide');
+if (!hits[0] || hits[0].relativePath !== ${JSON.stringify(expectedTopHit)}) {
+  throw new Error(${JSON.stringify(`[${testCase.name}] expected lexical profile top hit ${expectedTopHit}`)});
+}
+if (requestedPaths.some((value) => value.endsWith('/vectors.bin') || value.includes('/model/'))) {
+  throw new Error(${JSON.stringify(`[${testCase.name}] lexical profile should not load vectors or model files: `)} + JSON.stringify(requestedPaths));
+}
+console.log(JSON.stringify({
+  case: ${JSON.stringify(`${testCase.name}-lexical-profile`)},
+  topHit: hits[0].relativePath,
+  requests: requestedPaths,
+}, null, 2));
+`,
+    ],
+    repoRoot,
+  );
 }
 
 function ensureBuiltArtifacts() {

@@ -172,6 +172,10 @@ export interface NativeSearchOptions {
   scoreAdjustment?: NativeScoreAdjustmentOptions;
 }
 
+export interface NativeOpenIndexOptions {
+  modeProfile?: 'hybrid' | 'lexical';
+}
+
 export interface NativeRerankerOptions {
   kind?: 'embedding-v1' | 'heuristic-v1';
   candidatePoolSize?: number;
@@ -188,7 +192,7 @@ export interface NativeIndex {
 
 export interface NativeModule {
   NativeIndex: {
-    open(artifactPath: string): NativeIndex;
+    open(artifactPath: string, options?: NativeOpenIndexOptions): NativeIndex;
   };
   buildArtifactFromDirectory(
     inputDir: string,

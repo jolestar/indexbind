@@ -11,6 +11,8 @@ pub enum IndexbindError {
     Json(#[from] serde_json::Error),
     #[error("embedding error: {0}")]
     Embedding(#[from] anyhow::Error),
+    #[error("invalid search config: {0}")]
+    InvalidSearchConfig(String),
     #[error("artifact metadata missing: {0}")]
     MissingMetadata(&'static str),
 }

@@ -4,6 +4,7 @@ import {
   type NativeBestMatch,
   type NativeDocumentHit,
   type NativeIndex,
+  type NativeOpenIndexOptions,
   type NativeSearchOptions,
 } from './native.js';
 
@@ -64,17 +65,27 @@ export interface ArtifactInfo {
   chunkCount: number;
 }
 
+export interface OpenIndexOptions {
+  modeProfile?: 'hybrid' | 'lexical';
+}
+
 export class Index {
   readonly #nativeIndex: NativeIndex;
+  readonly #modeProfile: 'hybrid' | 'lexical';
 
-  private constructor(nativeIndex: NativeIndex) {
+  private constructor(nativeIndex: NativeIndex, modeProfile: 'hybrid' | 'lexical') {
     this.#nativeIndex = nativeIndex;
+    this.#modeProfile = modeProfile;
   }
 
-  static async open(artifactPath: string): Promise<Index> {
+  static async open(artifactPath: string, options: OpenIndexOptions = {}): Promise<Index> {
     const module = loadNativeModule();
-    const nativeIndex = module.NativeIndex.open(artifactPath);
-    return new Index(nativeIndex);
+    const modeProfile = options.modeProfile ?? 'hybrid';
+    const nativeOptions: NativeOpenIndexOptions = {
+      modeProfile,
+    };
+    const nativeIndex = module.NativeIndex.open(artifactPath, nativeOptions);
+    return new Index(nativeIndex, modeProfile);
   }
 
   info(): ArtifactInfo {
@@ -85,7 +96,7 @@ export class Index {
     assertNoLegacyHybridOption(options);
     const nativeOptions: NativeSearchOptions = {
       topK: options.topK,
-      mode: options.mode,
+      mode: options.mode ?? this.#modeProfile,
       minScore: options.minScore,
       reranker: options.reranker,
       relativePathPrefix: options.relativePathPrefix,
@@ -96,8 +107,8 @@ export class Index {
   }
 }
 
-export function openIndex(artifactPath: string): Promise<Index> {
-  return Index.open(artifactPath);
+export function openIndex(artifactPath: string, options: OpenIndexOptions = {}): Promise<Index> {
+  return Index.open(artifactPath, options);
 }
 
 function assertNoLegacyHybridOption(options: SearchOptions): void {

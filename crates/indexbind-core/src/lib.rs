@@ -34,7 +34,7 @@ pub use lexical::{
 #[cfg(not(target_arch = "wasm32"))]
 pub use retriever::{
     ArtifactInfo, RetrievalMode, RerankerKind, RerankerOptions, Retriever,
-    ScoreAdjustmentOptions, SearchOptions,
+    RetrieverOpenOptions, ScoreAdjustmentOptions, SearchOptions, ModeProfile,
 };
 pub use types::{
     BestMatch, DocumentHit, MetadataMap, NormalizedDocument, SourceRoot, StoredChunk,

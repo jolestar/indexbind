@@ -23,6 +23,15 @@ const index = await openWebIndex('/search/index.bundle');
 const hits = await index.search('cloudflare wasm');
 ```
 
+If your site always uses lexical-only retrieval, open the bundle with a lexical profile so vectors and model files are not loaded for that runtime instance:
+
+```ts
+const index = await openWebIndex('/search/index.bundle', {
+  modeProfile: 'lexical',
+});
+const hits = await index.search('cloudflare wasm');
+```
+
 ## Cloudflare Worker
 
 ```ts

@@ -61,6 +61,7 @@ export interface WebArtifactInfo {
 
 export interface OpenWebIndexOptions {
   fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  modeProfile?: 'hybrid' | 'lexical';
 }
 
 interface CanonicalArtifactManifest {
@@ -145,7 +146,12 @@ interface FusedScore {
   lexicalBest?: BestMatch;
 }
 
-interface WasmSearchBackend {
+interface SearchBackend {
+  info(): unknown;
+  search(query: string, options?: unknown): DocumentHit[] | Promise<DocumentHit[]>;
+}
+
+interface WasmLikeSearchBackend {
   info(): unknown;
   search(query: string, options?: unknown): unknown;
 }
@@ -160,28 +166,31 @@ export interface WasmIndexBinding {
     tokenizerBytes?: Uint8Array,
     modelBytes?: Uint8Array,
     configBytes?: Uint8Array,
-  ): WasmSearchBackend;
+  ): WasmLikeSearchBackend;
 }
 
 export class WebIndex {
   readonly #manifest: CanonicalArtifactManifest;
   readonly #documents: CanonicalDocumentRecord[];
   readonly #documentsById: Map<string, CanonicalDocumentRecord>;
-  readonly #wasmIndex: WasmSearchBackend;
+  readonly #searchBackend: SearchBackend;
+  readonly #modeProfile: 'hybrid' | 'lexical';
 
   constructor(
     manifest: CanonicalArtifactManifest,
     documents: CanonicalDocumentRecord[],
-    wasmIndex: WasmSearchBackend,
+    searchBackend: SearchBackend,
+    modeProfile: 'hybrid' | 'lexical',
   ) {
     this.#manifest = manifest;
     this.#documents = documents;
     this.#documentsById = new Map(documents.map((document) => [document.docId, document]));
-    this.#wasmIndex = wasmIndex;
+    this.#searchBackend = searchBackend;
+    this.#modeProfile = modeProfile;
   }
 
-  static async open(base: string | URL): Promise<WebIndex> {
-    return openWebIndexInternal(base, createBrowserWasmIndex);
+  static async open(base: string | URL, options: OpenWebIndexOptions = {}): Promise<WebIndex> {
+    return openWebIndexInternal(base, createBrowserWasmIndex, options);
   }
 
   info(): WebArtifactInfo {
@@ -200,7 +209,10 @@ export class WebIndex {
 
   async search(query: string, options: SearchOptions = {}): Promise<DocumentHit[]> {
     assertNoLegacyHybridOption(options);
-    return this.#wasmIndex.search(query, options) as Promise<DocumentHit[]>;
+    return await this.#searchBackend.search(query, {
+      ...options,
+      mode: options.mode ?? this.#modeProfile,
+    });
   }
 }
 
@@ -213,9 +225,10 @@ async function openWebIndexInternal(
     vectorsBuffer: ArrayBuffer,
     postings: CanonicalPostings,
     modelBuffers?: [ArrayBuffer, ArrayBuffer, ArrayBuffer],
-  ) => Promise<WasmSearchBackend>,
+  ) => Promise<SearchBackend>,
   options: OpenWebIndexOptions = {},
 ): Promise<WebIndex> {
+  const modeProfile = options.modeProfile ?? 'hybrid';
   const manifest = await loadJson<CanonicalArtifactManifest>(base, 'manifest.json', options);
   const documents = await loadJson<CanonicalDocumentRecord[]>(
     base,
@@ -224,6 +237,14 @@ async function openWebIndexInternal(
   );
   const chunks = await loadJson<CanonicalChunkRecord[]>(base, manifest.files.chunks, options);
   const postings = await loadJson<CanonicalPostings>(base, manifest.files.postings, options);
+  if (modeProfile === 'lexical') {
+    return new WebIndex(
+      manifest,
+      documents,
+      createLexicalSearchBackend(documents, chunks, postings),
+      modeProfile,
+    );
+  }
   const vectorsBuffer = await loadArrayBuffer(base, manifest.files.vectors, options);
   const modelBuffers = manifest.files.model
     ? await Promise.all([
@@ -240,7 +261,7 @@ async function openWebIndexInternal(
     postings,
     modelBuffers,
   );
-  return new WebIndex(manifest, documents, wasmIndex);
+  return new WebIndex(manifest, documents, wasmIndex, modeProfile);
 }
 
 export async function openWebIndex(
@@ -286,7 +307,7 @@ async function createBrowserWasmIndex(
   vectorsBuffer: ArrayBuffer,
   postings: CanonicalPostings,
   modelBuffers?: [ArrayBuffer, ArrayBuffer, ArrayBuffer],
-): Promise<WasmSearchBackend> {
+): Promise<SearchBackend> {
   if (!supportsWasmBackend(manifest.embeddingBackend)) {
     throw new Error('unsupported embedding backend for web runtime');
   }
@@ -304,7 +325,7 @@ async function createBrowserWasmIndex(
         tokenizerBytes?: Uint8Array,
         modelBytes?: Uint8Array,
         configBytes?: Uint8Array,
-      ) => WasmSearchBackend;
+      ) => SearchBackend;
     };
     const wasmBinary = await loadWasmBinary();
     await wasmModule.default({ module_or_path: wasmBinary });
@@ -317,7 +338,7 @@ async function createBrowserWasmIndex(
       modelBuffers ? new Uint8Array(modelBuffers[0]) : undefined,
       modelBuffers ? new Uint8Array(modelBuffers[1]) : undefined,
       modelBuffers ? new Uint8Array(modelBuffers[2]) : undefined,
-    );
+    ) as SearchBackend;
   } catch (error) {
     const detail =
       error instanceof Error ? error.stack ?? `${error.name}: ${error.message}` : String(error);
@@ -335,7 +356,7 @@ function createBoundWasmIndex(
   postings: CanonicalPostings,
   modelBuffers: [ArrayBuffer, ArrayBuffer, ArrayBuffer] | undefined,
   WasmIndex: WasmIndexBinding,
-): WasmSearchBackend {
+): SearchBackend {
   if (!supportsWasmBackend(manifest.embeddingBackend)) {
     throw new Error('unsupported embedding backend for web runtime');
   }
@@ -349,7 +370,161 @@ function createBoundWasmIndex(
     modelBuffers ? new Uint8Array(modelBuffers[0]) : undefined,
     modelBuffers ? new Uint8Array(modelBuffers[1]) : undefined,
     modelBuffers ? new Uint8Array(modelBuffers[2]) : undefined,
-  );
+  ) as SearchBackend;
+}
+
+class LexicalSearchBackend implements SearchBackend {
+  readonly #documentsById: Map<string, CanonicalDocumentRecord>;
+  readonly #chunks: CanonicalChunkRecord[];
+  readonly #postings: CanonicalPostings;
+
+  constructor(
+    documents: CanonicalDocumentRecord[],
+    chunks: CanonicalChunkRecord[],
+    postings: CanonicalPostings,
+  ) {
+    this.#documentsById = new Map(documents.map((document) => [document.docId, document]));
+    this.#chunks = chunks;
+    this.#postings = postings;
+  }
+
+  info(): unknown {
+    return {};
+  }
+
+  async search(query: string, options: SearchOptions = {}): Promise<DocumentHit[]> {
+    const mode = options.mode ?? 'lexical';
+    if (mode !== 'lexical') {
+      throw new Error(
+        `this index was opened with modeProfile: "lexical"; mode "${mode}" is unavailable. Re-open with modeProfile: "hybrid".`,
+      );
+    }
+
+    const topK = options.topK ?? 10;
+    const allowedDocIds = new Set<string>();
+    for (const document of this.#documentsById.values()) {
+      if (documentMatches(document, options)) {
+        allowedDocIds.add(document.docId);
+      }
+    }
+    if (allowedDocIds.size === 0) {
+      return [];
+    }
+
+    const rerankCandidateLimit = Math.max(options.reranker?.candidatePoolSize ?? topK, topK);
+    const limit = Math.max(topK * 8, rerankCandidateLimit, topK);
+    const finalCandidateLimit = options.scoreAdjustment ? limit : rerankCandidateLimit;
+    const lexicalDocs = rankDocumentsByLexical(query, limit, allowedDocIds, this.#chunks, this.#postings);
+    const fused = fuseDocuments(this.#documentsById, [], lexicalDocs, limit);
+    const reranked = rerankLexicalHits(query, fused, options.reranker, finalCandidateLimit);
+    return finalizeHits(reranked, options.scoreAdjustment, options.minScore, topK);
+  }
+}
+
+function createLexicalSearchBackend(
+  documents: CanonicalDocumentRecord[],
+  chunks: CanonicalChunkRecord[],
+  postings: CanonicalPostings,
+): SearchBackend {
+  return new LexicalSearchBackend(documents, chunks, postings);
+}
+
+function rankDocumentsByLexical(
+  query: string,
+  limit: number,
+  allowedDocIds: Set<string>,
+  chunks: CanonicalChunkRecord[],
+  postings: CanonicalPostings,
+): RankedDocument[] {
+  const tokens = tokenize(query);
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const totalChunks = chunks.length || 1;
+  const avgChunkLength = postings.avgChunkLength > 0 ? postings.avgChunkLength : 1;
+  const chunkScores = new Map<number, number>();
+
+  for (const token of tokens) {
+    const tokenPostings = postings.postings[token];
+    if (!tokenPostings) {
+      continue;
+    }
+    const df = postings.documentFrequency[token] ?? tokenPostings.length;
+    const idf = Math.log(1 + (totalChunks - df + 0.5) / (df + 0.5));
+    for (const posting of tokenPostings) {
+      const chunk = chunks[posting.chunkIndex];
+      if (!chunk || !allowedDocIds.has(chunk.docId)) {
+        continue;
+      }
+      const tf = posting.termFrequency;
+      const length = Math.max(chunk.tokenCount, 1);
+      const k1 = 1.2;
+      const b = 0.75;
+      const normalized = tf + k1 * (1 - b + b * (length / avgChunkLength));
+      const score = idf * ((tf * (k1 + 1)) / normalized);
+      chunkScores.set(posting.chunkIndex, (chunkScores.get(posting.chunkIndex) ?? 0) + score);
+    }
+  }
+
+  const rankedChunks = Array.from(chunkScores.entries())
+    .map(([chunkIndex, score]) => ({
+      docId: chunks[chunkIndex]?.docId,
+      score,
+      chunk: chunks[chunkIndex],
+    }))
+    .filter((entry): entry is RankedChunk => Boolean(entry.docId && entry.chunk))
+    .sort((left, right) => right.score - left.score);
+
+  return aggregateRankedDocuments(rankedChunks, limit);
+}
+
+function rerankLexicalHits(
+  query: string,
+  hits: DocumentHit[],
+  reranker: RerankerOptions | undefined,
+  topK: number,
+): DocumentHit[] {
+  if (!reranker) {
+    return hits.slice(0, topK);
+  }
+  const kind = reranker.kind ?? 'embedding-v1';
+  if (kind === 'embedding-v1') {
+    throw new Error(
+      'embedding-v1 reranking is unavailable when the index is opened with modeProfile: "lexical". Re-open with modeProfile: "hybrid" or use heuristic-v1.',
+    );
+  }
+  return rerankDocumentsWithHeuristic(query, hits, reranker, topK);
+}
+
+function finalizeHits(
+  hits: DocumentHit[],
+  scoreAdjustment: ScoreAdjustmentOptions | undefined,
+  minScore: number | undefined,
+  topK: number,
+): DocumentHit[] {
+  const adjusted = hits.map((hit) => {
+    let score = hit.score;
+    const field = scoreAdjustment?.metadataNumericMultiplier;
+    if (field) {
+      const multiplier = hit.metadata[field];
+      if (typeof multiplier === 'number' && Number.isFinite(multiplier) && multiplier > 0) {
+        score *= multiplier;
+      }
+    }
+    return {
+      ...hit,
+      score,
+    };
+  });
+
+  const filtered =
+    typeof minScore === 'number' && Number.isFinite(minScore)
+      ? adjusted.filter((hit) => hit.score >= minScore)
+      : adjusted;
+
+  filtered.sort((left, right) => right.score - left.score);
+  return filtered.slice(0, topK);
 }
 
 function documentMatches(document: CanonicalDocumentRecord, options: SearchOptions): boolean {

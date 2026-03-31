@@ -5,8 +5,8 @@ use indexbind_build::{
 use indexbind_core::{
     build_canonical_artifact, export_artifact_from_build_cache, export_canonical_from_build_cache,
     update_build_cache, BuildArtifactOptions, BuildCacheUpdate, BuildStats, CanonicalBuildStats,
-    ChunkingOptions, DocumentHit, EmbeddingBackend, IncrementalBuildStats, NormalizedDocument,
-    Retriever, SearchOptions, SourceRoot,
+    ChunkingOptions, DocumentHit, EmbeddingBackend, IncrementalBuildStats, ModeProfile,
+    NormalizedDocument, Retriever, RetrieverOpenOptions, SearchOptions, SourceRoot,
 };
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -26,6 +26,11 @@ pub struct NodeSearchOptions {
     pub relative_path_prefix: Option<String>,
     pub metadata: Option<HashMap<String, String>>,
     pub score_adjustment: Option<NodeScoreAdjustmentOptions>,
+}
+
+#[napi(object)]
+pub struct NodeOpenIndexOptions {
+    pub mode_profile: Option<String>,
 }
 
 #[napi(object)]
@@ -153,9 +158,29 @@ pub struct NativeIndex {
 #[napi]
 impl NativeIndex {
     #[napi(factory)]
-    pub fn open(artifact_path: String) -> napi::Result<Self> {
+    pub fn open(
+        artifact_path: String,
+        options: Option<NodeOpenIndexOptions>,
+    ) -> napi::Result<Self> {
         let artifact_path = PathBuf::from(artifact_path);
-        let retriever = Retriever::open(&artifact_path).map_err(map_error)?;
+        let retriever = Retriever::open_with_options(
+            &artifact_path,
+            RetrieverOpenOptions {
+                mode_profile: match options
+                    .as_ref()
+                    .and_then(|value| value.mode_profile.as_deref())
+                {
+                    Some("hybrid") | None => ModeProfile::Hybrid,
+                    Some("lexical") => ModeProfile::Lexical,
+                    Some(other) => {
+                        return Err(Error::from_reason(format!(
+                            "unsupported mode profile: {other}"
+                        )))
+                    }
+                },
+            },
+        )
+        .map_err(map_error)?;
         Ok(Self {
             inner: Mutex::new(retriever),
         })

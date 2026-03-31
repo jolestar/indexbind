@@ -19,7 +19,7 @@ export async function openWebIndex(
   base: string | URL,
   options: import('./web-core.js').OpenWebIndexOptions = {},
 ) {
-  if (!wasmInitialized) {
+  if (options.modeProfile !== 'lexical' && !wasmInitialized) {
     initSync({ module: wasmModule });
     wasmInitialized = true;
   }

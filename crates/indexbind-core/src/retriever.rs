@@ -41,13 +41,27 @@ pub struct SearchOptions {
     pub score_adjustment: Option<ScoreAdjustmentOptions>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum RetrievalMode {
     #[default]
     Hybrid,
     Vector,
     Lexical,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ModeProfile {
+    #[default]
+    Hybrid,
+    Lexical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RetrieverOpenOptions {
+    #[serde(default)]
+    pub mode_profile: ModeProfile,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -111,11 +125,16 @@ pub struct Retriever {
     documents: HashMap<String, StoredDocument>,
     chunks: Vec<IndexedChunk>,
     chunks_by_id: HashMap<i64, StoredChunk>,
-    embedder: Embedder,
+    embedder: Option<Embedder>,
+    mode_profile: ModeProfile,
 }
 
 impl Retriever {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_with_options(path, RetrieverOpenOptions::default())
+    }
+
+    pub fn open_with_options(path: &Path, options: RetrieverOpenOptions) -> Result<Self> {
         let connection = Connection::open(path)?;
         let info = load_info(&connection)?;
         let documents = load_documents(&connection)?;
@@ -124,7 +143,11 @@ impl Retriever {
             .iter()
             .map(|entry| (entry.chunk.chunk_id, entry.chunk.clone()))
             .collect::<HashMap<_, _>>();
-        let embedder = Embedder::new(info.embedding_backend.clone())?;
+        let embedder = if options.mode_profile == ModeProfile::Hybrid {
+            Some(Embedder::new(info.embedding_backend.clone())?)
+        } else {
+            None
+        };
 
         Ok(Self {
             connection,
@@ -133,6 +156,7 @@ impl Retriever {
             chunks,
             chunks_by_id,
             embedder,
+            mode_profile: options.mode_profile,
         })
     }
 
@@ -141,6 +165,7 @@ impl Retriever {
     }
 
     pub fn search(&mut self, query: &str, options: SearchOptions) -> Result<Vec<DocumentHit>> {
+        self.ensure_mode_supported(options.mode)?;
         let allowed_doc_ids = self.allowed_doc_ids(&options);
         if allowed_doc_ids.is_empty() {
             return Ok(Vec::new());
@@ -162,7 +187,7 @@ impl Retriever {
             RetrievalMode::Hybrid | RetrievalMode::Vector => {
                 let formatted_query = format_query_for_embedding(query);
                 let query_embedding = self
-                    .embedder
+                    .embedder_mut()?
                     .embed_texts(&[formatted_query])?
                     .into_iter()
                     .next()
@@ -225,6 +250,24 @@ fn finalize_hits(
 }
 
 impl Retriever {
+    fn ensure_mode_supported(&self, mode: RetrievalMode) -> Result<()> {
+        if self.mode_profile == ModeProfile::Lexical && mode != RetrievalMode::Lexical {
+            return Err(IndexbindError::InvalidSearchConfig(format!(
+                "this index was opened with modeProfile: \"lexical\"; mode \"{}\" is unavailable. Re-open with modeProfile: \"hybrid\"",
+                mode.as_str()
+            )));
+        }
+        Ok(())
+    }
+
+    fn embedder_mut(&mut self) -> Result<&mut Embedder> {
+        self.embedder.as_mut().ok_or_else(|| {
+            IndexbindError::InvalidSearchConfig(
+                "embedding resources are unavailable for this index instance".to_string(),
+            )
+        })
+    }
+
     fn allowed_doc_ids(&self, options: &SearchOptions) -> HashSet<String> {
         self.documents
             .values()
@@ -310,7 +353,8 @@ impl Retriever {
 
         match config.kind {
             RerankerKind::EmbeddingV1 => {
-                rerank_documents_with_embeddings(&mut self.embedder, query, hits, config, top_k)
+                let embedder = self.embedder_mut()?;
+                rerank_documents_with_embeddings(embedder, query, hits, config, top_k)
             }
             RerankerKind::HeuristicV1 => {
                 Ok(rerank_documents_with_heuristic(query, hits, config, top_k))
@@ -549,6 +593,16 @@ fn rerank_documents_with_embeddings(
     Ok(reranked)
 }
 
+impl RetrievalMode {
+    fn as_str(&self) -> &'static str {
+        match self {
+            RetrievalMode::Hybrid => "hybrid",
+            RetrievalMode::Vector => "vector",
+            RetrievalMode::Lexical => "lexical",
+        }
+    }
+}
+
 fn score_document_heuristic(
     hit: &DocumentHit,
     query_tokens: &[String],
@@ -729,8 +783,8 @@ fn build_fts_query(input: &str) -> Option<String> {
 mod tests {
     use super::{
         finalize_hits, rerank_documents_with_embeddings, rerank_documents_with_heuristic,
-        BestMatch, DocumentHit, RerankerKind, RerankerOptions, RetrievalMode, Retriever,
-        ScoreAdjustmentOptions, SearchOptions,
+        BestMatch, DocumentHit, ModeProfile, RerankerKind, RerankerOptions, RetrievalMode,
+        Retriever, RetrieverOpenOptions, ScoreAdjustmentOptions, SearchOptions,
     };
     use crate::artifact::build_artifact;
     use crate::build::BuildArtifactOptions;
@@ -1317,5 +1371,68 @@ mod tests {
         assert!(!hits.is_empty());
         assert_eq!(hits[0].doc_id, "rust-guide");
         assert!(hits.iter().all(|hit| hit.relative_path != "python.md"));
+    }
+
+    #[test]
+    fn lexical_mode_profile_rejects_vector_search() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("docs");
+        std::fs::create_dir_all(&source).unwrap();
+
+        let artifact = dir.path().join("index.sqlite");
+        build_artifact(
+            &artifact,
+            &[NormalizedDocument {
+                doc_id: Some("rust-guide".to_string()),
+                source_path: None,
+                relative_path: "rust.md".to_string(),
+                canonical_url: None,
+                title: Some("Rust Guide".to_string()),
+                summary: None,
+                content: "# Rust Guide\nRust guide for local search.".to_string(),
+                metadata: BTreeMap::new(),
+            }],
+            &BuildArtifactOptions {
+                source_root: SourceRoot {
+                    id: "root".to_string(),
+                    original_path: source.display().to_string(),
+                },
+                embedding_backend: EmbeddingBackend::Hashing { dimensions: 128 },
+                chunking: Default::default(),
+            },
+        )
+        .unwrap();
+
+        let mut retriever = Retriever::open_with_options(
+            &artifact,
+            RetrieverOpenOptions {
+                mode_profile: ModeProfile::Lexical,
+            },
+        )
+        .unwrap();
+
+        let hits = retriever
+            .search(
+                "rust guide",
+                SearchOptions {
+                    mode: RetrievalMode::Lexical,
+                    ..SearchOptions::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(hits[0].doc_id, "rust-guide");
+
+        let error = retriever
+            .search(
+                "rust guide",
+                SearchOptions {
+                    mode: RetrievalMode::Vector,
+                    ..SearchOptions::default()
+                },
+            )
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("this index was opened with modeProfile: \"lexical\""));
     }
 }
