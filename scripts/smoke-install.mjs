@@ -55,12 +55,12 @@ if (inspectInfo.documentCount !== 1) {
 
 const searchOutput = capture(
   npmCommand,
-  ['exec', '--', 'indexbind', 'search', cliArtifactPath, 'rust guide', '--mode', 'vector', '--top-k', '3'],
+  ['exec', '--', 'indexbind', 'search', cliArtifactPath, 'rust guide', '--mode', 'lexical', '--top-k', '3'],
   tempDir,
 );
 const searchResult = JSON.parse(searchOutput);
 if (
-  searchResult.options?.mode !== 'vector' ||
+  searchResult.options?.mode !== 'lexical' ||
   searchResult.hitCount !== 1 ||
   searchResult.hits[0]?.relativePath !== 'rust.md'
 ) {

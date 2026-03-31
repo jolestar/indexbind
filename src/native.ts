@@ -164,7 +164,7 @@ export interface NativeBenchmarkSummary {
 
 export interface NativeSearchOptions {
   topK?: number;
-  mode?: 'hybrid' | 'vector';
+  mode?: 'hybrid' | 'vector' | 'lexical';
   minScore?: number;
   reranker?: NativeRerankerOptions;
   relativePathPrefix?: string;

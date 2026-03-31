@@ -300,7 +300,7 @@ function parseSearchCommandArgs(args: string[]): {
   const positional: string[] = [];
   const metadata: Record<string, string> = {};
   let topK: number | undefined;
-  let mode: 'hybrid' | 'vector' | undefined;
+  let mode: 'hybrid' | 'vector' | 'lexical' | undefined;
   let minScore: number | undefined;
   let rerankerKind: 'embedding-v1' | 'heuristic-v1' | undefined;
   let candidatePoolSize: number | undefined;
@@ -324,7 +324,7 @@ function parseSearchCommandArgs(args: string[]): {
         break;
       case '--hybrid':
         throw new Error(
-          'The --hybrid flag has been removed. Use --mode hybrid or --mode vector instead.',
+          'The --hybrid flag has been removed. Use --mode hybrid, --mode vector, or --mode lexical instead.',
         );
       case '--min-score':
         minScore = parseFloatFlag('--min-score', args[index + 1]);
@@ -438,9 +438,9 @@ function parseReranker(value: string | undefined): 'embedding-v1' | 'heuristic-v
   throw new Error(`unsupported reranker kind: ${reranker}`);
 }
 
-function parseMode(value: string | undefined): 'hybrid' | 'vector' {
+function parseMode(value: string | undefined): 'hybrid' | 'vector' | 'lexical' {
   const mode = requireFlagValue('--mode', value);
-  if (mode === 'hybrid' || mode === 'vector') {
+  if (mode === 'hybrid' || mode === 'vector' || mode === 'lexical') {
     return mode;
   }
   throw new Error(`unsupported retrieval mode: ${mode}`);
@@ -578,7 +578,7 @@ function benchmarkUsage(): string {
 }
 
 function searchUsage(): string {
-  return 'usage: indexbind search <artifact-file> <query> [--top-k <n>] [--mode <hybrid|vector>] [--reranker <kind>] [--candidate-pool-size <n>] [--relative-path-prefix <prefix>] [--metadata key=value] [--score-adjust-metadata-multiplier <field>] [--min-score <float>] [--text]';
+  return 'usage: indexbind search <artifact-file> <query> [--top-k <n>] [--mode <hybrid|vector|lexical>] [--reranker <kind>] [--candidate-pool-size <n>] [--relative-path-prefix <prefix>] [--metadata key=value] [--score-adjust-metadata-multiplier <field>] [--min-score <float>] [--text]';
 }
 
 await main();

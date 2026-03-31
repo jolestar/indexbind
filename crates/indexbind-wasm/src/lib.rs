@@ -231,12 +231,19 @@ impl WasmIndex {
             .unwrap_or(top_k)
             .max(top_k);
         let limit = (top_k * 8).max(rerank_candidate_limit).max(top_k);
-        let query_embedding = self.embed_query(&query)?;
-        let vector_docs = self.rank_documents_by_vector(&query_embedding, limit, &allowed_doc_ids);
-        let lexical_docs = if retrieval_mode(&options)? == "hybrid" {
-            self.rank_documents_by_lexical(&query, limit, &allowed_doc_ids)
-        } else {
-            Vec::new()
+        let mode = retrieval_mode(&options)?;
+        let vector_docs = match mode {
+            "hybrid" | "vector" => {
+                let query_embedding = self.embed_query(&query)?;
+                self.rank_documents_by_vector(&query_embedding, limit, &allowed_doc_ids)
+            }
+            "lexical" => Vec::new(),
+            _ => unreachable!(),
+        };
+        let lexical_docs = match mode {
+            "hybrid" | "lexical" => self.rank_documents_by_lexical(&query, limit, &allowed_doc_ids),
+            "vector" => Vec::new(),
+            _ => unreachable!(),
         };
         let fused = self.fuse_documents(&vector_docs, &lexical_docs, limit);
         let reranked = self.rerank_documents(
@@ -259,6 +266,7 @@ fn retrieval_mode(options: &SearchOptions) -> Result<&str, JsValue> {
     match options.mode.as_deref() {
         Some("hybrid") | None => Ok("hybrid"),
         Some("vector") => Ok("vector"),
+        Some("lexical") => Ok("lexical"),
         Some(other) => Err(to_js_error(format!("unsupported retrieval mode: {other}"))),
     }
 }

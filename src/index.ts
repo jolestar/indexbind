@@ -17,7 +17,7 @@ export type JsonValue =
 
 export interface SearchOptions {
   topK?: number;
-  mode?: 'hybrid' | 'vector';
+  mode?: 'hybrid' | 'vector' | 'lexical';
   minScore?: number;
   reranker?: RerankerOptions;
   relativePathPrefix?: string;
@@ -103,7 +103,7 @@ export function openIndex(artifactPath: string): Promise<Index> {
 function assertNoLegacyHybridOption(options: SearchOptions): void {
   if (options && typeof options === 'object' && Object.prototype.hasOwnProperty.call(options, 'hybrid')) {
     throw new Error(
-      'Search option "hybrid" has been removed. Use mode: "hybrid" or mode: "vector" instead.',
+      'Search option "hybrid" has been removed. Use mode: "hybrid", "vector", or "lexical" instead.',
     );
   }
 }

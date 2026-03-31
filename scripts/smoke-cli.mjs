@@ -28,10 +28,10 @@ fs.writeFileSync(path.join(docsDir, 'rust.md'), '# Rust Guide\n\nRust retrieval 
 
 runCli(['build', docsDir, artifactPath, 'hashing']);
 const searchResult = JSON.parse(
-  captureCli(['search', artifactPath, 'rust guide', '--mode', 'vector', '--top-k', '1']),
+  captureCli(['search', artifactPath, 'rust guide', '--mode', 'lexical', '--top-k', '1']),
 );
-if (searchResult.options?.mode !== 'vector') {
-  throw new Error(`Expected vector mode search output, got ${JSON.stringify(searchResult)}`);
+if (searchResult.options?.mode !== 'lexical') {
+  throw new Error(`Expected lexical mode search output, got ${JSON.stringify(searchResult)}`);
 }
 
 const literalQueryResult = JSON.parse(captureCli(['search', artifactPath, '--', '--help']));
@@ -50,6 +50,10 @@ if (searchResult.query !== 'rust guide') {
 
 const { openIndex } = await import(pathToFileURL(path.join(repoRoot, 'dist/index.js')).href);
 const index = await openIndex(artifactPath);
+const lexicalHits = await index.search('rust guide', { mode: 'lexical' });
+if (!lexicalHits[0] || lexicalHits[0].relativePath !== 'rust.md') {
+  throw new Error(`Expected lexical mode API search hit, got ${JSON.stringify(lexicalHits)}`);
+}
 const apiHits = await index.search('rust guide', { mode: 'vector' });
 if (!apiHits[0] || apiHits[0].relativePath !== 'rust.md') {
   throw new Error(`Expected vector mode API search hit, got ${JSON.stringify(apiHits)}`);

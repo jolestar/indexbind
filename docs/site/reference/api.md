@@ -51,7 +51,7 @@ Returns artifact metadata such as:
 Main options:
 
 - `topK?`: number of hits to return
-- `mode?`: `'hybrid'` or `'vector'`
+- `mode?`: `'hybrid'`, `'vector'`, or `'lexical'`
 - `minScore?`: prune low-confidence tail hits after final scoring
 - `reranker?`: optional final reranking stage
 - `relativePathPrefix?`: restrict retrieval to a path subtree
@@ -253,6 +253,7 @@ const hits = await index.search(query, {
 });
 ```
 
-`mode: 'vector'` means vector-only retrieval. A lexical-only mode is not available yet.
+- `mode: 'vector'` means vector-only retrieval.
+- `mode: 'lexical'` means lexical-only retrieval.
 
 For a fuller explanation of how these knobs interact, see [Search Quality Controls](../guides/search-quality-controls.md).

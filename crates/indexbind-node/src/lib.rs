@@ -197,6 +197,7 @@ impl NativeIndex {
             mode: match options.as_ref().and_then(|value| value.mode.as_deref()) {
                 Some("hybrid") | None => indexbind_core::RetrievalMode::Hybrid,
                 Some("vector") => indexbind_core::RetrievalMode::Vector,
+                Some("lexical") => indexbind_core::RetrievalMode::Lexical,
                 Some(other) => {
                     return Err(Error::from_reason(format!(
                         "unsupported retrieval mode: {other}"

@@ -47,6 +47,7 @@ pub enum RetrievalMode {
     #[default]
     Hybrid,
     Vector,
+    Lexical,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -157,18 +158,24 @@ impl Retriever {
         } else {
             rerank_candidate_limit
         };
-        let formatted_query = format_query_for_embedding(query);
-        let query_embedding = self
-            .embedder
-            .embed_texts(&[formatted_query])?
-            .into_iter()
-            .next()
-            .unwrap_or_default();
-        let vector_docs = self.rank_documents_by_vector(&query_embedding, limit, &allowed_doc_ids);
-        let lexical_docs = if options.mode == RetrievalMode::Hybrid {
-            self.rank_documents_by_lexical(query, limit, &allowed_doc_ids)?
-        } else {
-            Vec::new()
+        let vector_docs = match options.mode {
+            RetrievalMode::Hybrid | RetrievalMode::Vector => {
+                let formatted_query = format_query_for_embedding(query);
+                let query_embedding = self
+                    .embedder
+                    .embed_texts(&[formatted_query])?
+                    .into_iter()
+                    .next()
+                    .unwrap_or_default();
+                self.rank_documents_by_vector(&query_embedding, limit, &allowed_doc_ids)
+            }
+            RetrievalMode::Lexical => Vec::new(),
+        };
+        let lexical_docs = match options.mode {
+            RetrievalMode::Hybrid | RetrievalMode::Lexical => {
+                self.rank_documents_by_lexical(query, limit, &allowed_doc_ids)?
+            }
+            RetrievalMode::Vector => Vec::new(),
         };
         let fused_hits = fuse_documents(&self.documents, &vector_docs, &lexical_docs, limit);
         let reranked = self.rerank_documents(
@@ -721,8 +728,8 @@ fn build_fts_query(input: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        rerank_documents_with_embeddings, rerank_documents_with_heuristic, BestMatch, DocumentHit,
-        finalize_hits, RetrievalMode, RerankerKind, RerankerOptions, Retriever,
+        finalize_hits, rerank_documents_with_embeddings, rerank_documents_with_heuristic,
+        BestMatch, DocumentHit, RerankerKind, RerankerOptions, RetrievalMode, Retriever,
         ScoreAdjustmentOptions, SearchOptions,
     };
     use crate::artifact::build_artifact;
@@ -1252,5 +1259,63 @@ mod tests {
         assert_eq!(finalized.len(), 1);
         assert_eq!(finalized[0].doc_id, "doc-promoted");
         assert!(finalized[0].score >= 0.1);
+    }
+
+    #[test]
+    fn lexical_mode_returns_lexical_matches() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("docs");
+        std::fs::create_dir_all(&source).unwrap();
+
+        let artifact = dir.path().join("index.sqlite");
+        build_artifact(
+            &artifact,
+            &[
+                NormalizedDocument {
+                    doc_id: Some("rust-guide".to_string()),
+                    source_path: None,
+                    relative_path: "rust.md".to_string(),
+                    canonical_url: None,
+                    title: Some("Rust Guide".to_string()),
+                    summary: None,
+                    content: "# Rust Guide\nRust guide for local search.".to_string(),
+                    metadata: BTreeMap::new(),
+                },
+                NormalizedDocument {
+                    doc_id: Some("python-guide".to_string()),
+                    source_path: None,
+                    relative_path: "python.md".to_string(),
+                    canonical_url: None,
+                    title: Some("Python Guide".to_string()),
+                    summary: None,
+                    content: "# Python Guide\nPython notes for data tooling.".to_string(),
+                    metadata: BTreeMap::new(),
+                },
+            ],
+            &BuildArtifactOptions {
+                source_root: SourceRoot {
+                    id: "root".to_string(),
+                    original_path: source.display().to_string(),
+                },
+                embedding_backend: EmbeddingBackend::Hashing { dimensions: 128 },
+                chunking: Default::default(),
+            },
+        )
+        .unwrap();
+
+        let mut retriever = Retriever::open(&artifact).unwrap();
+        let hits = retriever
+            .search(
+                "rust guide",
+                SearchOptions {
+                    mode: RetrievalMode::Lexical,
+                    ..SearchOptions::default()
+                },
+            )
+            .unwrap();
+
+        assert!(!hits.is_empty());
+        assert_eq!(hits[0].doc_id, "rust-guide");
+        assert!(hits.iter().all(|hit| hit.relative_path != "python.md"));
     }
 }

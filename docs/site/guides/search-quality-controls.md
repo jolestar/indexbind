@@ -33,7 +33,15 @@ const hits = await index.search('rust guide', {
 });
 ```
 
-`mode: 'vector'` means vector-only retrieval. There is no lexical-only mode yet.
+`mode: 'vector'` means vector-only retrieval.
+
+```ts
+const hits = await index.search('rust guide', {
+  mode: 'lexical',
+});
+```
+
+`mode: 'lexical'` means lexical-only retrieval.
 
 ### `relativePathPrefix`
 
