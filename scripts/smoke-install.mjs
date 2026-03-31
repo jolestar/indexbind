@@ -53,18 +53,32 @@ if (inspectInfo.documentCount !== 1) {
   throw new Error(`Unexpected inspect output: ${inspectOutput}`);
 }
 
-const searchOutput = capture(
+const vectorSearchOutput = capture(
+  npmCommand,
+  ['exec', '--', 'indexbind', 'search', cliArtifactPath, 'rust guide', '--mode', 'vector', '--top-k', '3'],
+  tempDir,
+);
+const vectorSearchResult = JSON.parse(vectorSearchOutput);
+if (
+  vectorSearchResult.options?.mode !== 'vector' ||
+  vectorSearchResult.hitCount !== 1 ||
+  vectorSearchResult.hits[0]?.relativePath !== 'rust.md'
+) {
+  throw new Error(`Unexpected vector CLI search output: ${vectorSearchOutput}`);
+}
+
+const lexicalSearchOutput = capture(
   npmCommand,
   ['exec', '--', 'indexbind', 'search', cliArtifactPath, 'rust guide', '--mode', 'lexical', '--top-k', '3'],
   tempDir,
 );
-const searchResult = JSON.parse(searchOutput);
+const lexicalSearchResult = JSON.parse(lexicalSearchOutput);
 if (
-  searchResult.options?.mode !== 'lexical' ||
-  searchResult.hitCount !== 1 ||
-  searchResult.hits[0]?.relativePath !== 'rust.md'
+  lexicalSearchResult.options?.mode !== 'lexical' ||
+  lexicalSearchResult.hitCount !== 1 ||
+  lexicalSearchResult.hits[0]?.relativePath !== 'rust.md'
 ) {
-  throw new Error(`Unexpected CLI search output: ${searchOutput}`);
+  throw new Error(`Unexpected lexical CLI search output: ${lexicalSearchOutput}`);
 }
 
 const helpResult = spawnSync(
