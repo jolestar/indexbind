@@ -4,12 +4,15 @@ use crate::embedding::{format_chunk_for_embedding, vector_to_bytes, Embedder, Em
 use crate::lexical::{tokenize, LEXICAL_TOKENIZER_VERSION};
 use crate::types::{MetadataMap, NormalizedDocument};
 use crate::{IndexbindError, Result};
-use model2vec_rs::model::resolve_model_files;
+#[cfg(not(target_arch = "wasm32"))]
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(not(target_arch = "wasm32"))]
+use hf_hub::api::sync::Api;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -243,7 +246,7 @@ pub(crate) fn maybe_write_model_assets(
         return Ok(None);
     };
 
-    let files = resolve_model_files(model, None, None)
+    let files = resolve_model_files_for_bundle(model, None)
         .map_err(|error| IndexbindError::Embedding(error.into()))?;
     let model_dir = output_dir.join("model");
     fs::create_dir_all(&model_dir)?;
@@ -255,6 +258,46 @@ pub(crate) fn maybe_write_model_assets(
         config: "model/config.json".to_string(),
         weights: "model/model.safetensors".to_string(),
     }))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone)]
+struct BundleModelFiles {
+    tokenizer: std::path::PathBuf,
+    config: std::path::PathBuf,
+    model: std::path::PathBuf,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve_model_files_for_bundle(model: &str, token: Option<&str>) -> anyhow::Result<BundleModelFiles> {
+    let base = Path::new(model);
+    if base.exists() {
+        return resolve_local_model_files(base);
+    }
+
+    let api = Api::new().context("hf-hub API init failed")?;
+    let repo = api.model(model.to_owned());
+    let _ = token;
+    Ok(BundleModelFiles {
+        tokenizer: repo.get("tokenizer.json")?,
+        config: repo.get("config.json")?,
+        model: repo.get("model.safetensors")?,
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve_local_model_files(base: &Path) -> anyhow::Result<BundleModelFiles> {
+    let tokenizer = base.join("tokenizer.json");
+    let config = base.join("config.json");
+    let model = base.join("model.safetensors");
+    if !tokenizer.exists() || !config.exists() || !model.exists() {
+        anyhow::bail!("local path {base:?} missing tokenizer / model / config");
+    }
+    Ok(BundleModelFiles {
+        tokenizer,
+        config,
+        model,
+    })
 }
 
 pub(crate) fn build_postings(chunks: &[CanonicalChunkRecord]) -> CanonicalPostings {

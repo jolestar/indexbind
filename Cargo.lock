@@ -88,15 +88,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
-name = "approx"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "arraydeque"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -987,6 +978,7 @@ dependencies = [
  "anyhow",
  "blake3",
  "getrandom 0.2.17",
+ "hf-hub",
  "model2vec-rs",
  "rusqlite",
  "serde",
@@ -1188,9 +1180,9 @@ dependencies = [
 [[package]]
 name = "model2vec-rs"
 version = "0.1.4"
+source = "git+https://github.com/MinishLab/model2vec-rs.git?rev=53c5a618f5d04e889359a3a0c04676e9c3138769#53c5a618f5d04e889359a3a0c04676e9c3138769"
 dependencies = [
  "anyhow",
- "approx",
  "clap",
  "half",
  "hf-hub",
@@ -1898,7 +1890,6 @@ dependencies = [
  "esaxx-rs",
  "fancy-regex",
  "getrandom 0.3.4",
- "hf-hub",
  "indicatif",
  "itertools",
  "log",

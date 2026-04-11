@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 [dependencies]
 blake3.workspace = true
 indexbind-core = { path = "../indexbind-core" }
-model2vec-rs = { path = "../../forks/model2vec-rs", default-features = false, features = ["wasm"] }
+model2vec-rs = { git = "https://github.com/MinishLab/model2vec-rs.git", rev = "53c5a618f5d04e889359a3a0c04676e9c3138769", default-features = false, features = ["wasm"] }
 serde.workspace = true
 serde-wasm-bindgen.workspace = true
 serde_json.workspace = true

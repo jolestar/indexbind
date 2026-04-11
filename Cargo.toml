@@ -19,6 +19,7 @@ documentation = "https://indexbind.jolestar.workers.dev"
 anyhow = "1.0.100"
 blake3 = "1.8.2"
 getrandom = { version = "0.2.17", features = ["js"] }
+hf-hub = { version = "0.4.3", default-features = false, features = ["ureq"] }
 ignore = "0.4.24"
 napi = { version = "3.8.3", features = ["napi4"] }
 napi-build = "2.3.0"
