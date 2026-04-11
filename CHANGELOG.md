@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3
+
+- Removed the vendored `forks/model2vec-rs` copy and switched the workspace to a pinned upstream `model2vec-rs` git dependency.
+- Replaced the previous fork-private canonical bundle model asset helper with a local `hf-hub`-backed resolver for native bundle builds.
+- Fixed wasm-target canonical asset compilation so the upstream dependency switch builds cleanly across the existing Node and wasm package pipeline.
+
 ## 0.6.2
 
 - Added index-scoped `indexbind.build.js` and `indexbind.search.js` conventions so one indexed root can attach document shaping, default search profiles, and lightweight query rewrites to the native `indexbind` pipeline.

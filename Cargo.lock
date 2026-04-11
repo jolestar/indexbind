@@ -960,7 +960,7 @@ dependencies = [
 
 [[package]]
 name = "indexbind-build"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "anyhow",
  "ignore",
@@ -973,7 +973,7 @@ dependencies = [
 
 [[package]]
 name = "indexbind-core"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "anyhow",
  "blake3",
@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "indexbind-node"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "indexbind-build",
  "indexbind-core",
@@ -1002,7 +1002,7 @@ dependencies = [
 
 [[package]]
 name = "indexbind-wasm"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "blake3",
  "indexbind-core",
