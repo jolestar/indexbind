@@ -250,24 +250,26 @@ pub(crate) fn maybe_write_model_assets(
     {
         let _ = output_dir;
         let _ = model;
-        return Err(IndexbindError::Embedding(anyhow::anyhow!(
+        Err(IndexbindError::Embedding(anyhow::anyhow!(
             "model asset bundling is unavailable on wasm targets"
-        )));
+        )))
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    let files = resolve_model_files_for_bundle(model, None)
-        .map_err(|error| IndexbindError::Embedding(error.into()))?;
-    let model_dir = output_dir.join("model");
-    fs::create_dir_all(&model_dir)?;
-    fs::copy(&files.tokenizer, model_dir.join("tokenizer.json"))?;
-    fs::copy(&files.config, model_dir.join("config.json"))?;
-    fs::copy(&files.model, model_dir.join("model.safetensors"))?;
-    Ok(Some(CanonicalModelFiles {
-        tokenizer: "model/tokenizer.json".to_string(),
-        config: "model/config.json".to_string(),
-        weights: "model/model.safetensors".to_string(),
-    }))
+    {
+        let files = resolve_model_files_for_bundle(model, None)
+            .map_err(|error| IndexbindError::Embedding(error.into()))?;
+        let model_dir = output_dir.join("model");
+        fs::create_dir_all(&model_dir)?;
+        fs::copy(&files.tokenizer, model_dir.join("tokenizer.json"))?;
+        fs::copy(&files.config, model_dir.join("config.json"))?;
+        fs::copy(&files.model, model_dir.join("model.safetensors"))?;
+        Ok(Some(CanonicalModelFiles {
+            tokenizer: "model/tokenizer.json".to_string(),
+            config: "model/config.json".to_string(),
+            weights: "model/model.safetensors".to_string(),
+        }))
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
